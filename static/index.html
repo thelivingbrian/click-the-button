@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title>Password Guess Game</title>
 
-    <!-- Datastar CDN -->
+    <!-- Todo: Pull in locally  -->
     <script type="module"
             src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.11/bundles/datastar.js">
     </script>
@@ -17,49 +17,40 @@
   </head>
 
   <body>
-
-    <h1>Password Guessing Game</h1>
-
-    <!-- live status text -->
     <div data-signals="{ 
         message: `Welcome! First to crack the code wins.`,
         showDialog: false,
-        counter: 0
+        counter: 0,
+        guess: ``,
     }" />
+
+    <h1>Password Guessing Game</h1>
     <p data-text="$message"></p>
 
-    <div data-on-load="$counter+=1">Local Clicks: <span data-text="$counter"></span> <button data-on-click="$counter+=1">Reset</button></div>
-
-    <button data-on-click="@post('/signal')">signal</button>
-
-    <!-- guess form -->
     <div data-indicator-posting>
       <input name="guess"
              pattern="[A-Z]+"
              maxlength="8"
              placeholder="YOUR GUESS"
              style="text-transform:uppercase"
+             data-bind="guess"
              required>
       <button data-on-click="@post('/guess', {
         retryMaxCount: 0
     })">Guess</button>
     </div>
-    
+
     <h2 data-show="$showDialog">Winners</h2>
     <ol id="board"
         data-get="/leaderboard"
         data-transition="fade">
     </ol>
 
-    <!-- Not working -->
-    <dialog id="winModal" data-show="$showDialog">
-      <h3>You cracked it! 🎉</h3>
-      <p>Pick the next secret (A‑Z only, ≤ 8 chars)</p>
-      <form data-post="/newpass">
-        <input name="new" pattern="[A-Z]{3,8}" required>
-        <button>Set password</button>
-      </form>
-    </dialog>
+    <!-- Random tests -->
+    <div data-on-load="$counter+=4">
+        Local Clicks: <span data-text="$counter"></span><button data-on-click="$counter+=1">Add One</button>
+    </div>
+    <button data-on-click="@post('/signal')">signal</button>
 
   </body>
 </html>

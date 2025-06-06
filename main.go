@@ -50,7 +50,10 @@ func guess(w http.ResponseWriter, r *http.Request) {
 		//sse.ConsoleError(err, nil)
 		return
 	}
-	fmt.Println(signals)
+	if signals.Guess == secret {
+		fmt.Println("Congrats you are a winner!")
+	}
+
 	signals.Counter = 155
 	signals.ShowDialog = !signals.ShowDialog
 
