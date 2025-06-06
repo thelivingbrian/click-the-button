@@ -30,8 +30,13 @@ func main() {
 func root(w http.ResponseWriter, r *http.Request) { tmpl.Execute(w, nil) }
 
 func signal(w http.ResponseWriter, r *http.Request) {
+	var signals PageSignals
+	if err := datastar.ReadSignals(r, &signals); err != nil {
+		fmt.Println(err)
+		return
+	}
 	sse := datastar.NewSSE(w, r)
-	sse.MergeSignals([]byte(`{counter: 7, showDialog: true}`))
+	sse.MergeSignals([]byte(fmt.Sprintf(`{counter: 0, showDialog: %t}`, !signals.ShowDialog)))
 }
 
 type PageSignals struct {
@@ -45,23 +50,19 @@ func guess(w http.ResponseWriter, r *http.Request) {
 	var signals PageSignals
 
 	if err := datastar.ReadSignals(r, &signals); err != nil {
-		// If the JSON is malformed, send a console error back to the client.
 		fmt.Println(err)
-		//sse.ConsoleError(err, nil)
+		// sse.ConsoleError(err, nil)
 		return
 	}
+
 	if signals.Guess == secret {
 		fmt.Println("Congrats you are a winner!")
 	}
 
-	signals.Counter = 155
-	signals.ShowDialog = !signals.ShowDialog
-
 	sse := datastar.NewSSE(w, r)
 	if err := sse.MarshalAndMergeSignals(&signals); err != nil {
-		// If something went wrong serializing, log it to the client console
 		fmt.Println(err)
-		//sse.ConsoleError(err, nil)
+		// sse.ConsoleError(err, nil)
 		return
 	}
 
