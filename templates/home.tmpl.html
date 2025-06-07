@@ -3,7 +3,7 @@
 <html lang="en" data-stream="/events"> <!-- Connect to SSE -->
   <head>
     <meta charset="utf-8">
-    <title>Guess the password</title>
+    <title>Click the button</title>
 
     <!-- Todo: Pull in locally  -->
     <script type="module"
@@ -14,24 +14,29 @@
 
   <body>
     <div data-signals="{ 
-        message: `Welcome! First to crack the code wins.`,
+        message: `If you dare. . . `,
         showDialog: false,
         counter: 0,
-        guess: ``,
     }" />
 
-    <h1>Password Guessing Game</h1>
+    <h1>Click the button</h1>
     <p data-text="$message"></p>
 
-    <div data-indicator-posting>
-      <input name="guess"
-             placeholder="YOUR GUESS"
-             data-bind="guess"
-             required>
-      <button data-on-click="@post('/guess', {
-        retryMaxCount: 0
-    })">Guess</button>
+    
+    <div data-on-load="$counter+=4">
+        Total Clicks: <span data-text="$counter"></span>
     </div>
+
+    <button data-on-click="@post('/click', {
+        retryMaxCount: 0
+    })">
+      Click
+    </button><br />
+    <br />
+
+    <a href="#">Notable Clicks</a><br />
+    <a href="#">About</a>
+
 
     <h2 data-show="$showDialog">Winners</h2>
     <ol id="board"
@@ -40,10 +45,9 @@
     </ol>
 
     <!-- Random tests -->
-    <div data-on-load="$counter+=4">
-        Local Clicks: <span data-text="$counter"></span><button data-on-click="$counter+=1">Add One</button>
-    </div>
     <button data-on-click="@post('/signal')">signal</button>
+    <button data-on-click="@post('/signal2')">signal2</button>
+    <button data-on-click="@post('/signal3')">signal3</button>
 
   </body>
 </html>

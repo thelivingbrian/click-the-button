@@ -1,5 +1,4 @@
-module github.com/thelivingbrian/guess-the-password
-
+module github.com/thelivingbrian/click-the-button
 go 1.23.3
 
 toolchain go1.23.9
