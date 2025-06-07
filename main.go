@@ -10,15 +10,17 @@ import (
 )
 
 var (
-	secret = "PASS"
-	tmpl   = template.Must(template.ParseFiles("static/index.html"))
+	secret       = "PASS"
+	verification = "179843792357035873485623598476"
+	views        = 0
+	tmpl         = template.Must(template.ParseGlob("templates/*.tmpl.html"))
 )
 
 // Can generic struct like so be used for json marshal or demarshal?
 type Signal map[string]any
 
 func main() {
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 	http.HandleFunc("/", root)
 	http.HandleFunc("/guess", guess)
 	http.HandleFunc("/signal", signal)
@@ -27,7 +29,9 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-func root(w http.ResponseWriter, r *http.Request) { tmpl.Execute(w, nil) }
+func root(w http.ResponseWriter, r *http.Request) {
+	tmpl.ExecuteTemplate(w, "home", nil)
+}
 
 func signal(w http.ResponseWriter, r *http.Request) {
 	var signals PageSignals
