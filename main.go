@@ -93,7 +93,6 @@ func signal3(w http.ResponseWriter, r *http.Request) {
 		"counter": 42,
 	}
 	b, err := json.Marshal(signal)
-	fmt.Println(b)
 	if err != nil {
 		// handle or log: unsupported value at path "ch"
 	}
