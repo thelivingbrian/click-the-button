@@ -1,6 +1,6 @@
 {{ define "home"}}
 <!doctype html>
-<html lang="en" data-stream="/events"> <!-- Connect to SSE -->
+<html lang="en" data-stream="/events"> <!-- Connect to SSE here ? -->
   <head>
     <meta charset="utf-8">
     <title>Click the button</title>
@@ -13,6 +13,7 @@
   </head>
 
   <body>
+    <!-- Todo: Include via template -->
     <div data-signals="{ 
         message: `...if you dare `,
         showDialog: false,
@@ -35,19 +36,12 @@
     <a href="#">Notable Clicks</a><br />
     <a href="#">About</a>
 
-
+    <!-- Todo: modal window -->
     <h2 data-show="$showDialog">Winners</h2>
     <ol id="board"
         data-get="/leaderboard"
         data-transition="fade">
     </ol>
-
-    <!-- Random tests
-    <button data-on-click="@post('/signal')">signal</button>
-    <button data-on-click="@post('/signal2')">signal2</button>
-    <button data-on-click="@post('/signal3')">signal3</button> 
-    -->
-
   </body>
 </html>
 {{ end }}
