@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"sync/atomic"
+	"time"
 
 	datastar "github.com/starfederation/datastar/sdk/go"
 )
@@ -21,6 +22,7 @@ func main() {
 	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 	http.HandleFunc("/", root)
 	http.HandleFunc("/click", click)
+	http.HandleFunc("/stream", stream)
 
 	// Testing
 	http.HandleFunc("/signal", signal)
@@ -61,6 +63,31 @@ func click(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func stream(w http.ResponseWriter, r *http.Request) {
+	signal := Signal{}
+	previous := int64(0)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	sse := datastar.NewSSE(w, r)
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			count := clicks.Load()
+			if previous != count {
+				previous = count
+				signal["counter"] = count
+				b, err := json.Marshal(signal)
+				if err != nil {
+					// handle or log: unsupported value at path "ch"
+				}
+				sse.MergeSignals(b)
+			}
+		}
+	}
+
+}
+
 ////////////////////////////////////////////////////////////////
 // Testing
 
@@ -73,6 +100,7 @@ func signal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sse := datastar.NewSSE(w, r)
+
 	sse.MergeSignals([]byte(`{counter: 0, showDialog: false}`))
 }
 

@@ -23,7 +23,7 @@
     <p data-text="$message"></p>
 
     
-    <div data-on-load="$counter+=4">
+    <div data-on-load="@get('/stream')">
         Total Clicks: <span data-text="$counter"></span>
     </div>
 
