@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
@@ -25,9 +24,9 @@ func main() {
 	http.HandleFunc("/stream", stream)
 
 	// Testing
-	http.HandleFunc("/signal", signal)
-	http.HandleFunc("/signal2", signal2)
-	http.HandleFunc("/signal3", signal3)
+	// http.HandleFunc("/signal", signal)
+	// http.HandleFunc("/signal2", signal2)
+	// http.HandleFunc("/signal3", signal3)
 
 	log.Println("listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -46,7 +45,6 @@ type PageSignals struct {
 
 func click(w http.ResponseWriter, r *http.Request) {
 	var signals PageSignals
-
 	if err := datastar.ReadSignals(r, &signals); err != nil {
 		fmt.Println(err)
 		// sse.ConsoleError(err, nil)
@@ -63,6 +61,8 @@ func click(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type Signal map[string]any
+
 func stream(w http.ResponseWriter, r *http.Request) {
 	signal := Signal{}
 	previous := int64(0)
@@ -77,11 +77,10 @@ func stream(w http.ResponseWriter, r *http.Request) {
 			if previous != count {
 				previous = count
 				signal["counter"] = count
-				b, err := json.Marshal(signal)
+				err := sse.MarshalAndMergeSignals(&signal)
 				if err != nil {
-					// handle or log: unsupported value at path "ch"
+					fmt.Println(err)
 				}
-				sse.MergeSignals(b)
 			}
 		}
 	}
@@ -91,8 +90,7 @@ func stream(w http.ResponseWriter, r *http.Request) {
 ////////////////////////////////////////////////////////////////
 // Testing
 
-type Signal map[string]any
-
+/*
 func signal(w http.ResponseWriter, r *http.Request) {
 	var signals PageSignals
 	if err := datastar.ReadSignals(r, &signals); err != nil {
@@ -127,3 +125,4 @@ func signal3(w http.ResponseWriter, r *http.Request) {
 	sse := datastar.NewSSE(w, r)
 	sse.MergeSignals(b)
 }
+*/
