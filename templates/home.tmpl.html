@@ -1,0 +1,47 @@
+{{ define "home"}}
+<!doctype html>
+<html lang="en" data-stream="/events"> <!-- Connect to SSE here ? -->
+  <head>
+    <meta charset="utf-8">
+    <title>Click the button</title>
+
+    <!-- Todo: Pull in locally  -->
+    <script type="module"
+            src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.11/bundles/datastar.js">
+    </script>
+    <link rel="stylesheet" href="/assets/style.css">
+  </head>
+
+  <body>
+    <!-- Todo: Include via template -->
+    <div data-signals="{ 
+        message: `...if you dare `,
+        showDialog: false,
+        counter: 0,
+    }" />
+
+    <h1>Click the button!</h1>
+    <p data-text="$message"></p>
+
+    
+    <div data-on-load="@get('/stream')">
+        Total Clicks: <span data-text="$counter"></span>
+    </div>
+
+    <button data-on-click="@post('/click')">
+      Click
+    </button><br />
+    <br />
+
+    <a href="#">Notable Clicks</a><br />
+    <a href="#">About</a>
+
+    <!-- Todo: modal window -->
+    <h2 data-show="$showDialog">Winners</h2>
+    <ol id="board"
+        data-get="/leaderboard"
+        data-transition="fade">
+    </ol>
+  </body>
+</html>
+{{ end }}
