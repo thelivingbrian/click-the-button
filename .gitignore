@@ -1,2 +1,6 @@
 *.txt
 *.exe
+*.db
+*.db-shm
+*.db-wal
+/data/
