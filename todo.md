@@ -26,6 +26,8 @@
   - [ ] all-time
   - [ ] window 
   - [ ] last 15 minutes / real time 
+- [ ] Build / Deploy
+  - [ ] Add GH Actions pipeline
 
 # V0.0.2
 - [ ] Backups
