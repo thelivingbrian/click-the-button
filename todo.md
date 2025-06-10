@@ -6,9 +6,9 @@
     - [-] Click count
       - [-] Track
       - [-] Load
-    - [ ] View count 
-      - [ ] Track
-      - [ ] Load
+    - [-] View count 
+      - [-] Track
+      - [-] Load
     - [ ] Backup ?
       - [ ] Copy .db file on startup ? 
     - [ ] View in CLI

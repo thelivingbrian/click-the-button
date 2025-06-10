@@ -1,4 +1,5 @@
 CREATE TABLE IF NOT EXISTS counter_snapshots (
     ts    INTEGER PRIMARY KEY,
-    total INTEGER NOT NULL
+    clicks INTEGER NOT NULL,
+    views INTEGER NOT NULL
 );

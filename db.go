@@ -43,19 +43,20 @@ func initDB() DB {
 	return DB{DB: db}
 }
 
-func fetchMostRecentClickCount(db DB) int64 {
-	var last int64
+func fetchMostRecentSnapshot(db DB) (int64, int64) {
+	var clicks, views int64
 	err := db.QueryRow(`
-		SELECT total
+		SELECT clicks, views
 		FROM   counter_snapshots
 		ORDER  BY ts DESC
 		LIMIT  1`,
-	).Scan(&last)
+	).Scan(&clicks, &views)
 	if err != nil && err != sql.ErrNoRows {
-		log.Fatalf("load last total: %v", err)
+		fmt.Println("Fatal error fetching most recent snapshot:", err)
+		panic(err)
 	}
 
-	return last // 0 if no rows yet
+	return clicks, views
 }
 
 // ---------- Snapshots -------------
@@ -65,25 +66,27 @@ func takePeriodicSnapshots(db DB) {
 		ticker := time.NewTicker(snapshotInterval)
 		defer ticker.Stop()
 
-		var previousClickCount int64
+		var previousClickCount, previousViewCount int64
 		for range ticker.C {
-			current := clicks.Load()
-			if current == previousClickCount {
+			currentClicks := clicks.Load()
+			currentViews := views.Load()
+			if currentClicks == previousClickCount && currentViews == previousViewCount {
 				continue
 			}
-			fmt.Println("inserting: ", current)
-			if err := insertSnapshot(db, current); err != nil {
+			fmt.Println("inserting: ", currentClicks, currentViews)
+			if err := insertSnapshot(db, currentClicks, currentViews); err != nil {
 				log.Println("Error taking snapshot:", err)
 				continue
 			}
-			previousClickCount = current
+			previousClickCount, previousViewCount = currentClicks, currentViews
 		}
 	}()
 }
 
-func insertSnapshot(db DB, total int64) error {
+func insertSnapshot(db DB, clicks, views int64) error {
 	_, err := db.ExecContext(context.Background(),
-		`INSERT INTO counter_snapshots(ts,total) VALUES (?,?)`,
-		time.Now().UTC().Unix(), total)
+		`INSERT INTO counter_snapshots(ts, clicks, views) 
+		VALUES (?,?,?)`,
+		time.Now().UTC().Unix(), clicks, views)
 	return err
 }

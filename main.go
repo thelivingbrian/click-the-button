@@ -17,7 +17,7 @@ import (
 const (
 	dbFilePath       = "data/clicks.db"
 	schemaFilePath   = "sql/schema.sql"
-	snapshotInterval = 5 * 60 * time.Second
+	snapshotInterval = 1 * 60 * time.Second
 )
 
 // ---------- App ----------
@@ -33,18 +33,19 @@ type HomePageSignals struct {
 var (
 	greeting = "...if you dare!"
 	tmpl     = template.Must(template.ParseGlob("templates/*.tmpl.html"))
-	views    atomic.Int64 // todo track in/load from snapshot
+	views    atomic.Int64
 	clicks   atomic.Int64
 )
 
 func main() {
 	db := initDB()            // grab config from .env
 	takePeriodicSnapshots(db) // Inject interval from config
-	clicks.Store(fetchMostRecentClickCount(db))
-	// Store views
+	clickCount, viewCount := fetchMostRecentSnapshot(db)
+	clicks.Store(clickCount)
+	views.Store(viewCount)
 
 	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
-	http.HandleFunc("/", home)
+	http.HandleFunc("/{$}", home)
 	http.HandleFunc("/click", click)
 	http.HandleFunc("/stream", stream)
 
