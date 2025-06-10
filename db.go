@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -59,22 +60,42 @@ func fetchMostRecentSnapshot(db DB) (int64, int64) {
 	return clicks, views
 }
 
+func backupWithVacuumInto(ctx context.Context, db DB, dir string) error {
+	ts := time.Now().UTC().Format("2006-01-02")
+	filename := filepath.Join(dir, fmt.Sprintf("backup-%s.db", ts))
+	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+		return err
+	}
+
+	// If a backup for this date already exists, remove it so VACUUM INTO can recreate it.
+	if err := os.Remove(filename); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	// SQL single quotes are escaped via doubling
+	quoted := strings.ReplaceAll(filename, `'`, `''`)
+
+	_, err := db.ExecContext(ctx, "VACUUM INTO '"+quoted+"'")
+	return err
+}
+
 // ---------- Snapshots -------------
 
-func takePeriodicSnapshots(db DB) {
+func (app *App) takePeriodicSnapshots() {
+	// Add guard clause based on config
 	go func() {
-		ticker := time.NewTicker(snapshotInterval)
+		ticker := time.NewTicker(snapshotInterval) // Source from config
 		defer ticker.Stop()
 
 		var previousClickCount, previousViewCount int64
 		for range ticker.C {
-			currentClicks := clicks.Load()
-			currentViews := views.Load()
+			currentClicks := app.clicks.Load()
+			currentViews := app.views.Load()
 			if currentClicks == previousClickCount && currentViews == previousViewCount {
 				continue
 			}
 			fmt.Println("inserting: ", currentClicks, currentViews)
-			if err := insertSnapshot(db, currentClicks, currentViews); err != nil {
+			if err := insertSnapshot(app.db, currentClicks, currentViews); err != nil {
 				log.Println("Error taking snapshot:", err)
 				continue
 			}

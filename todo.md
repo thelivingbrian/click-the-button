@@ -1,7 +1,7 @@
 # V0.0.1
 - [-] Increment count with click
 - [-] Feed of current count from server
-- [ ] Add DB for persistence 
+- [-] Add DB for persistence 
     - [-] go embedded sqlLite3 ? 
     - [-] Click count
       - [-] Track
@@ -9,9 +9,12 @@
     - [-] View count 
       - [-] Track
       - [-] Load
-    - [ ] Backup ?
-      - [ ] Copy .db file on startup ? 
-    - [ ] View in CLI
+    - [-] Backup
+      - [-] Copy .db file on startup
+        - [-] implement
+        - [-] test locally
+    - [-] View in CLI
+      - [-] vscode extension
 - [ ] Modal window
   - [ ] Toggle via signal
   - [ ] Send fragment 
@@ -23,3 +26,10 @@
   - [ ] all-time
   - [ ] window 
   - [ ] last 15 minutes / real time 
+
+# V0.0.2
+- [ ] Backups
+    - [ ] Automate trim of backup files
+    - [ ] Automate load of backup file
+    - [ ] investigate failure modes / source of corruption
+    - [ ] add additional backup points
