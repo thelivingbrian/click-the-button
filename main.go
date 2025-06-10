@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	_ "embed" // required for the sqlite driver import side‑effect
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -29,11 +30,18 @@ const (
 
 type Signal map[string]any
 
+type HomePageSignals struct {
+	Message    string `json:"message"`
+	Counter    int64  `json:"counter"`
+	ShowDialog bool   `json:"showDialog"`
+}
+
 var (
-	tmpl   = template.Must(template.ParseGlob("templates/*.tmpl.html"))
-	views  atomic.Int64
-	clicks atomic.Int64
-	db     *sql.DB // todo: remove global
+	greeting = "...if you dare!"
+	tmpl     = template.Must(template.ParseGlob("templates/*.tmpl.html"))
+	views    atomic.Int64 // todo track in snapshot
+	clicks   atomic.Int64
+	db       *sql.DB // todo: remove global
 )
 
 func main() {
@@ -54,7 +62,17 @@ func main() {
 
 func home(w http.ResponseWriter, r *http.Request) {
 	views.Add(1)
-	_ = tmpl.ExecuteTemplate(w, "home", nil)
+	signal := HomePageSignals{
+		Message:    greeting,
+		Counter:    clicks.Load(),
+		ShowDialog: false,
+	}
+
+	bytes, err := json.Marshal(&signal)
+	if err != nil {
+		return
+	}
+	_ = tmpl.ExecuteTemplate(w, "home", string(bytes))
 }
 
 func click(w http.ResponseWriter, r *http.Request) {
