@@ -1,29 +1,23 @@
 package main
 
 import (
-	"context"
-	"database/sql"
-	_ "embed" // required for the sqlite driver import side‑effect
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sync/atomic"
 	"text/template"
 	"time"
 
 	datastar "github.com/starfederation/datastar/sdk/go"
-	_ "modernc.org/sqlite"
 )
 
 // ---------- Config -----------
 
 const (
-	dbFileRel   = "data/clicks.db"
-	schemaRel   = "sql/schema.sql"
-	snapshotInt = 5 * 60 * time.Second
+	dbFilePath       = "data/clicks.db"
+	schemaFilePath   = "sql/schema.sql"
+	snapshotInterval = 5 * 60 * time.Second
 )
 
 // ---------- App ----------
@@ -39,15 +33,15 @@ type HomePageSignals struct {
 var (
 	greeting = "...if you dare!"
 	tmpl     = template.Must(template.ParseGlob("templates/*.tmpl.html"))
-	views    atomic.Int64 // todo track in snapshot
+	views    atomic.Int64 // todo track in/load from snapshot
 	clicks   atomic.Int64
-	db       *sql.DB // todo: remove global
 )
 
 func main() {
-	initDB()
-	takePeriodicSnapshots() // Inject interval / grab from .env
+	db := initDB()            // grab config from .env
+	takePeriodicSnapshots(db) // Inject interval from config
 	clicks.Store(fetchMostRecentClickCount(db))
+	// Store views
 
 	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 	http.HandleFunc("/", home)
@@ -106,75 +100,4 @@ func stream(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-}
-
-// ---------- DB -------------
-
-func initDB() {
-	repoRoot, _ := os.Getwd()
-	dbPath := filepath.Join(repoRoot, filepath.FromSlash(dbFileRel))
-
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
-		log.Fatalf("mkdir data dir: %v", err)
-	}
-
-	var err error
-	db, err = sql.Open("sqlite", fmt.Sprintf("file:%s?_journal_mode=WAL", dbPath))
-	if err != nil {
-		log.Fatalf("open db: %v", err)
-	}
-
-	schemaPath := filepath.Join(repoRoot, filepath.FromSlash(schemaRel))
-	schema, err := os.ReadFile(schemaPath)
-	if err != nil {
-		log.Fatalf("read schema: %v", err)
-	}
-	if _, err := db.Exec(string(schema)); err != nil {
-		log.Fatalf("apply schema: %v", err)
-	}
-}
-
-func fetchMostRecentClickCount(db *sql.DB) int64 {
-	var last int64
-	err := db.QueryRow(`
-		SELECT total
-		FROM   counter_snapshots
-		ORDER  BY ts DESC
-		LIMIT  1`,
-	).Scan(&last)
-	if err != nil && err != sql.ErrNoRows {
-		log.Fatalf("load last total: %v", err)
-	}
-
-	return last // 0 if no rows yet
-}
-
-// ---------- Snapshots -------------
-
-func takePeriodicSnapshots() {
-	go func() {
-		ticker := time.NewTicker(snapshotInt)
-		defer ticker.Stop()
-
-		var previousClickCount int64
-		for range ticker.C {
-			current := clicks.Load()
-			if current == previousClickCount {
-				continue
-			}
-			fmt.Println("inserting: ", current)
-			if err := insertSnapshot(current); err != nil {
-				log.Println("Error taking snapshot:", err)
-				continue
-			}
-			previousClickCount = current
-		}
-	}()
-}
-
-func insertSnapshot(total int64) error {
-	_, err := db.ExecContext(context.Background(),
-		`INSERT INTO counter_snapshots(ts,total) VALUES (?,?)`,
-		time.Now().UTC().Unix(), total)
-	return err
 }

@@ -1,13 +1,8 @@
 {{ define "home"}}
 <!doctype html>
-<html lang="en" data-stream="/events"> <!-- Connect to SSE here ? -->
-  <head>
-    <meta charset="utf-8">
-    <title>Click the button</title>
-    <script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.11/bundles/datastar.js"></script>
-    <link rel="stylesheet" href="/assets/style.css">
-  </head>
-  <body data-signals='{{.}}'> <!-- Note: Single-quote -->
+<html lang="en">
+  {{template "page-header"}}
+  <body data-signals='{{.}}'> <!-- note: single-quote '' -->
     <h1>Click the button</h1>
     <p data-text="$message"></p>
 
@@ -29,4 +24,13 @@
     </ol>
   </body>
 </html>
+{{ end }}
+
+{{ define "page-header"}}
+<head>
+  <meta charset="utf-8">
+  <title>Click the Button</title>
+  <script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.11/bundles/datastar.js"></script>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
 {{ end }}
