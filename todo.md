@@ -2,4 +2,24 @@
 - [-] Increment count with click
 - [-] Feed of current count from server
 - [ ] Add DB for persistence 
-    - [ ] go embedded sqlLite3 ? 
+    - [-] go embedded sqlLite3 ? 
+    - [-] Click count
+      - [-] Track
+      - [-] Load
+    - [ ] View count 
+      - [ ] Track
+      - [ ] Load
+    - [ ] Backup ?
+      - [ ] Copy .db file on startup ? 
+    - [ ] View in CLI
+- [ ] Modal window
+  - [ ] Toggle via signal
+  - [ ] Send fragment 
+- [ ] Notable Clicks
+  - [ ] prompt
+  - [ ] verify 
+  - [ ] record in db
+- [ ] Graph 
+  - [ ] all-time
+  - [ ] window 
+  - [ ] last 15 minutes / real time 
