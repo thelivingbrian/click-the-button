@@ -38,8 +38,8 @@ func main() {
 	http.HandleFunc("/click", app.clickHandler)
 	http.HandleFunc("/stream", app.streamHandler)
 
-	log.Println("listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Println("listening on :14010")
+	log.Fatal(http.ListenAndServe(":14010", nil))
 }
 
 func createApp(db DB) *App {
