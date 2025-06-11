@@ -44,10 +44,12 @@ func (app *App) clickHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) streamHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("X-Accel-Buffering", "no")
+	sse := datastar.NewSSE(w, r)
+
 	signal := Signal{}
 	previous := int64(0)
 	ticker := time.NewTicker(100 * time.Millisecond)
-	sse := datastar.NewSSE(w, r)
 	for {
 		select {
 		case <-r.Context().Done():
