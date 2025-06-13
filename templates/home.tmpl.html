@@ -36,12 +36,12 @@
         const res  = await fetch('metrics');
         const data = await res.json();
 
-        const labels = data.map(p =>
-          new Date(p.ts * 1000).toLocaleString('en-US', {
-            weekday: 'short', hour: '2-digit', minute: '2-digit'
-          })
-        );
-        // const labels = data.map(p => new Date(p.ts * 1000));
+        // const labels = data.map(p =>
+        //   new Date(p.ts * 1000).toLocaleString('en-US', {
+        //     weekday: 'short', hour: '2-digit', minute: '2-digit'
+        //   })
+        // );
+        const labels = data.map(p => new Date(p.ts * 1000));
         const clicks = data.map(p => p.clicks);
         const views  = data.map(p => p.views);
 
@@ -58,15 +58,15 @@
             responsive: true, 
             parsing: true,
             scales: {
-              // x: {
-              //   type: 'time',                // <-- continuous!
-              //   time: {  
-              //     unit: 'hour', 
-              //     displayFormats: {
-              //       hour: 'MMM d, h:mm a' 
-              //     }     
-              //   }
-              // },
+              x: {
+                type: 'time',                // <-- continuous!
+                time: {  
+                  unit: 'hour', 
+                  displayFormats: {
+                    hour: 'MMM d, h:mm a' 
+                  }     
+                }
+              },
               y: { beginAtZero: true }
             },
           }
