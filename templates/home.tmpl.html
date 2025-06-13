@@ -6,8 +6,8 @@
     <h1>Click the button</h1>
     <p data-text="$message"></p>
 
-    <button data-on-click="@post('/click')">Click</button><br />
-    <div data-on-load="@get('/stream')">
+    <button data-on-click="@post('click')">Click</button><br />
+    <div data-on-load="@get('stream')">
         Total Clicks: <span data-text="$counter"></span>
     </div>
     <br />
@@ -22,6 +22,61 @@
         data-get="/leaderboard"
         data-transition="fade">
     </ol>
+
+
+   
+    <!--  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+    <canvas id="mChart"></canvas>
+
+    <script>
+      async function load() {
+
+        const res  = await fetch('metrics');
+        const data = await res.json();
+
+        const labels = data.map(p =>
+          new Date(p.ts * 1000).toLocaleString('en-US', {
+            weekday: 'short', hour: '2-digit', minute: '2-digit'
+          })
+        );
+        // const labels = data.map(p => new Date(p.ts * 1000));
+        const clicks = data.map(p => p.clicks);
+        const views  = data.map(p => p.views);
+
+        new Chart(document.getElementById('mChart'), {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              { label: 'Clicks', data: clicks, borderWidth: 1 },
+              { label: 'Views',  data: views,  borderWidth: 1 }
+            ]
+          },
+          options: { 
+            responsive: true, 
+            parsing: true,
+            scales: {
+              // x: {
+              //   type: 'time',                // <-- continuous!
+              //   time: {  
+              //     unit: 'hour', 
+              //     displayFormats: {
+              //       hour: 'MMM d, h:mm a' 
+              //     }     
+              //   }
+              // },
+              y: { beginAtZero: true }
+            },
+          }
+        });
+      }
+      load();
+    </script>
+
+
+
   </body>
 </html>
 {{ end }}

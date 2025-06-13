@@ -13,9 +13,10 @@ import (
 type Signal map[string]any
 
 type HomePageSignals struct {
-	Message    string `json:"message"`
-	Counter    int64  `json:"counter"`
-	ShowDialog bool   `json:"showDialog"`
+	Message    string  `json:"message"`
+	Counter    int64   `json:"counter"`
+	ShowDialog bool    `json:"showDialog"`
+	clicks     []int64 `json:"clicks"`
 }
 
 func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
@@ -24,6 +25,7 @@ func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 		Message:    greeting,
 		Counter:    app.clicks.Load(),
 		ShowDialog: false,
+		clicks:     []int64{0, 1, 10, 15, 25},
 	}
 
 	bytes, err := json.Marshal(&signal)
@@ -66,4 +68,27 @@ func (app *App) streamHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+type Point struct {
+	Ts     int64 `json:"ts"`
+	Clicks int   `json:"clicks"`
+	Views  int   `json:"views"`
+}
+
+func (app *App) metricsHandler(w http.ResponseWriter, r *http.Request) {
+	rows, err := app.db.Query(`SELECT ts, clicks, views FROM counter_snapshots
+                        		ORDER BY ts`)
+	if err != nil {
+		fmt.Println("Error querying metrics:", err)
+		return
+	}
+	var pts []Point
+	for rows.Next() {
+		var p Point
+		rows.Scan(&p.Ts, &p.Clicks, &p.Views)
+		pts = append(pts, p)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(pts)
 }
