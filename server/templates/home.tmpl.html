@@ -17,30 +17,28 @@
     <a href="#">About</a>
 
     <!-- Todo: modal window -->
-    <h2 data-show="$showDialog">Winners</h2>
-    <ol id="board"
-        data-get="/leaderboard"
-        data-transition="fade">
-    </ol>
+    <div id="modal-container" data-show="$showModal">
+        <div id="modal-content">
+            <h2 >Winners</h2>
+            <a href="#" data-on-click="@get('test')">New</a>
+
+        </div>
+
+    </div>
+
+    <img src="/metrics.svg" alt="Clicks over time">
 
 
-   
-    <!--  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
     <canvas id="mChart"></canvas>
 
-    <script>
-      async function load() {
+    <script type="module">
 
+      async function load() {
         const res  = await fetch('metrics');
         const data = await res.json();
 
-        // const labels = data.map(p =>
-        //   new Date(p.ts * 1000).toLocaleString('en-US', {
-        //     weekday: 'short', hour: '2-digit', minute: '2-digit'
-        //   })
-        // );
         const labels = data.map(p => new Date(p.ts * 1000));
         const clicks = data.map(p => p.clicks);
         const views  = data.map(p => p.views);
@@ -59,7 +57,7 @@
             parsing: true,
             scales: {
               x: {
-                type: 'time',                // <-- continuous
+                type: 'time',
                 time: {  
                   unit: 'hour', 
                   displayFormats: {
@@ -72,10 +70,6 @@
           }
         });
       }
-
-
-      // console.log('Signals:', ctx.signals);
-      // console.log('Clicks:', ctx.signals.signal('clicks').value);
 
       load();
     </script>
@@ -90,7 +84,9 @@
 <head>
   <meta charset="utf-8">
   <title>Click the Button</title>
+
   <script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.11/bundles/datastar.js"></script>
+
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 {{ end }}

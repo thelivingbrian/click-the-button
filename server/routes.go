@@ -13,19 +13,19 @@ import (
 type Signal map[string]any
 
 type HomePageSignals struct {
-	Message    string  `json:"message"`
-	Counter    int64   `json:"counter"`
-	ShowDialog bool    `json:"showDialog"`
-	clicks     []int64 `json:"clicks"`
+	Message   string  `json:"message"`
+	Counter   int64   `json:"counter"`
+	ShowModal bool    `json:"showModal"`
+	clicks    []int64 `json:"clicks"`
 }
 
 func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	app.views.Add(1)
 	signal := HomePageSignals{
-		Message:    greeting,
-		Counter:    app.clicks.Load(),
-		ShowDialog: false,
-		clicks:     []int64{0, 1, 10, 15, 25},
+		Message:   greeting,
+		Counter:   app.clicks.Load(),
+		ShowModal: true,
+		clicks:    []int64{0, 1, 10, 15, 25},
 	}
 
 	bytes, err := json.Marshal(&signal)
@@ -91,4 +91,15 @@ func (app *App) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(pts)
+}
+
+func (app *App) testHandler(w http.ResponseWriter, r *http.Request) {
+	sse := datastar.NewSSE(w, r)
+	sse.MergeFragments(`
+	<div id="modal-content">
+		<h2>Content</h2>
+		<a href="#" data-on-click="@get('test')">New</a>
+	</div>
+	`)
+	sse.ExecuteScript(`console.log(window.ds.store.signal('clicks').value)`)
 }
