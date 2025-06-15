@@ -16,34 +16,91 @@
     <a href="#">Show Graph</a><br />
     <a href="#">About</a>
 
-    <!-- Todo: modal window -->
-    <div id="modal-container" data-show="$showModal">
-        <div id="modal-content">
-            <h2 >Winners</h2>
-            <a href="#" data-on-click="@get('test')">New</a>
 
+    <div id="modal-container" data-show="$showModal">
+      <div id="modal-content">
+        <h2>Metrics</h2>
+        <a href="#" data-on-click="@get('test')">Hide</a>
+        <div class="range-buttons" style="margin-bottom:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+          <button data-range="1h">1h</button>
+          <button data-range="1d">1d</button>
+          <button data-range="2d">2d</button>
+          <button data-range="1w">1w</button>
+          <button data-range="all">All‑Time</button>
         </div>
 
+        <canvas id="mChart" height="240"></canvas>
+      </div>
     </div>
 
-    <img src="/metrics.svg" alt="Clicks over time">
+    <!-- <img src="/metrics.svg" alt="Clicks over time"> -->
 
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
-    <canvas id="mChart"></canvas>
 
-    <script type="module">
+    <script>
+
+      // async function load() {
+      //   const res  = await fetch('metrics');
+      //   const data = await res.json();
+
+      //   const labels = data.map(p => new Date(p.ts * 1000));
+      //   const clicks = data.map(p => p.clicks);
+      //   const views  = data.map(p => p.views);
+
+      //   new Chart(document.getElementById('mChart'), {
+      //     type: 'line',
+      //     data: {
+      //       labels,
+      //       datasets: [
+      //         { label: 'Clicks', data: clicks, borderWidth: 1 },
+      //         { label: 'Views',  data: views,  borderWidth: 1 }
+      //       ]
+      //     },
+      //     options: { 
+      //       responsive: true, 
+      //       parsing: true,
+      //       scales: {
+      //         x: {
+      //           type: 'time',
+      //           time: {  
+      //             unit: 'hour', 
+      //             displayFormats: {
+      //               hour: 'MMM d, h:mm a' 
+      //             }     
+      //           }
+      //         },
+      //         y: { beginAtZero: true }
+      //       },
+      //     }
+      //   });
+      // }
+
+      // load();
+    
+      // Hold onto the full dataset so we can slice it for each range.
+      let fullLabels = [], fullClicks = [], fullViews = [];
+      let chart;
 
       async function load() {
         const res  = await fetch('metrics');
         const data = await res.json();
 
-        const labels = data.map(p => new Date(p.ts * 1000));
-        const clicks = data.map(p => p.clicks);
-        const views  = data.map(p => p.views);
+        fullLabels = data.map(p => new Date(p.ts * 1000));
+        fullClicks = data.map(p => p.clicks);
+        fullViews  = data.map(p => p.views);
 
-        new Chart(document.getElementById('mChart'), {
+        // Default view is All‑Time.
+        createChart(fullLabels, fullClicks, fullViews);
+      }
+
+      function createChart(labels, clicks, views) {
+        const ctx = document.getElementById('mChart');
+        if (chart) {
+          chart.destroy();
+        }
+        chart = new Chart(ctx, {
           type: 'line',
           data: {
             labels,
@@ -52,26 +109,62 @@
               { label: 'Views',  data: views,  borderWidth: 1 }
             ]
           },
-          options: { 
-            responsive: true, 
+          options: {
+            responsive: true,
             parsing: true,
             scales: {
               x: {
                 type: 'time',
-                time: {  
-                  unit: 'hour', 
+                time: {
+                  unit: 'hour',
                   displayFormats: {
-                    hour: 'MMM d, h:mm a' 
-                  }     
+                    hour: 'MMM d, h:mm a'
+                  }
                 }
               },
               y: { beginAtZero: true }
-            },
+            }
           }
         });
       }
 
-      load();
+      function filterRange(range) {
+        if (range === 'all') {
+          createChart(fullLabels, fullClicks, fullViews);
+          return;
+        }
+
+        const now = Date.now();
+        const ranges = {
+          '1h': 1 * 60 * 60 * 1000,
+          '1d': 24 * 60 * 60 * 1000,
+          '2d': 2 * 24 * 60 * 60 * 1000,
+          '1w': 7 * 24 * 60 * 60 * 1000,
+        };
+        const cutoff = now - ranges[range];
+
+        const idx = fullLabels.findIndex(d => d.getTime() >= cutoff);
+        // If nothing found (all data older), fall back to full set.
+        const start = idx === -1 ? 0 : idx;
+
+        createChart(
+          fullLabels.slice(start),
+          fullClicks.slice(start),
+          fullViews.slice(start)
+        );
+      }
+
+      // Attach handlers to buttons once DOM is loaded.
+      document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.range-buttons button').forEach(btn => {
+          btn.addEventListener('click', () => {
+            filterRange(btn.dataset.range);
+          });
+        });
+
+        load();
+      });
+    
     </script>
 
 
