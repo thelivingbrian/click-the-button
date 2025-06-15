@@ -59,7 +59,7 @@
             parsing: true,
             scales: {
               x: {
-                type: 'time',                // <-- continuous!
+                type: 'time',                // <-- continuous
                 time: {  
                   unit: 'hour', 
                   displayFormats: {
@@ -72,6 +72,11 @@
           }
         });
       }
+
+
+      // console.log('Signals:', ctx.signals);
+      // console.log('Clicks:', ctx.signals.signal('clicks').value);
+
       load();
     </script>
 
