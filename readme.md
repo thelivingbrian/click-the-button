@@ -10,5 +10,6 @@ Click-the-Button tracks clicks of its eponymous button - while providing live up
 
 ## Build Instructions
 
-    Windows (powershell):  go build -o click-the-button.exe .\server; .\click-the-button.exe
-    Linux:  go build -o click-the-button ./server && ./click-the-button
+    Windows (powershell):  go build; .\server.exe
+    Linux:  go build && ./server
+
