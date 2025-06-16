@@ -8,15 +8,15 @@ import (
 	"time"
 
 	datastar "github.com/starfederation/datastar/sdk/go"
+	"github.com/wcharczuk/go-chart"
 )
 
 type Signal map[string]any
 
 type HomePageSignals struct {
-	Message   string  `json:"message"`
-	Counter   int64   `json:"counter"`
-	ShowModal bool    `json:"showModal"`
-	clicks    []int64 `json:"clicks"`
+	Message   string `json:"message"`
+	Counter   int64  `json:"counter"`
+	ShowModal bool   `json:"showModal"`
 }
 
 func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
@@ -25,7 +25,6 @@ func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 		Message:   greeting,
 		Counter:   app.clicks.Load(),
 		ShowModal: true,
-		clicks:    []int64{0, 1, 10, 15, 25},
 	}
 
 	bytes, err := json.Marshal(&signal)
@@ -93,13 +92,92 @@ func (app *App) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(pts)
 }
 
+///////////////////////////////////////////////////////////////
+// Server Side Rendered Chart
+
 func (app *App) testHandler(w http.ResponseWriter, r *http.Request) {
 	sse := datastar.NewSSE(w, r)
 	sse.MergeFragments(`
 	<div id="modal-content">
-		<h2>Content</h2>
-		<a href="#" data-on-click="@get('test')">New</a>
+		<h2>Metrics B</h2>
+		<img src="metrics.svg" alt="Clicks over time"><br />
+		<br />
+		<a href="#" data-on-click="@get('test')">Back</a>
 	</div>
 	`)
 	sse.ExecuteScript(`console.log(window.ds.store.signal('clicks').value)`)
+}
+
+func (db DB) metricsAsSvg(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "public, max-age=120")
+	points, err := fetchPoints(db)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	renderSVG(w, points)
+}
+
+func fetchPoints(db DB) ([]Point, error) {
+	rows, err := db.Query(`SELECT ts, clicks, views FROM counter_snapshots ORDER BY ts`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var pts []Point
+	for rows.Next() {
+		var p Point
+		if err := rows.Scan(&p.Ts, &p.Clicks, &p.Views); err != nil {
+			return nil, err
+		}
+		pts = append(pts, p)
+	}
+	return pts, nil
+}
+
+func renderSVG(w http.ResponseWriter, pts []Point) {
+	x := make([]time.Time, len(pts))
+	clicks := make([]float64, len(pts))
+	views := make([]float64, len(pts))
+
+	for i, p := range pts {
+		x[i] = time.Unix(p.Ts, 0)
+		clicks[i] = float64(p.Clicks)
+		views[i] = float64(p.Views)
+	}
+
+	graph := chart.Chart{
+		XAxis: chart.XAxis{
+			Name:           "Time",
+			NameStyle:      chart.StyleShow(),
+			Style:          chart.StyleShow(),
+			ValueFormatter: chart.TimeValueFormatter,
+		},
+		YAxis: chart.YAxis{
+			Name:      "Count",
+			NameStyle: chart.StyleShow(),
+			Style:     chart.StyleShow(),
+		},
+		Series: []chart.Series{
+			chart.TimeSeries{
+				Name:    "Clicks",
+				XValues: x,
+				YValues: clicks,
+			},
+			chart.TimeSeries{
+				Name:    "Views",
+				XValues: x,
+				YValues: views,
+				Style: chart.Style{
+					Show:        true,
+					StrokeColor: chart.ColorRed,
+					StrokeWidth: 2.0,
+				},
+			},
+		},
+	}
+
+	w.Header().Set("Content-Type", "image/svg+xml")
+	_ = graph.Render(chart.SVG, w)
 }
