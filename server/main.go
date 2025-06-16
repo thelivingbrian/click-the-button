@@ -18,7 +18,7 @@ const (
 
 var (
 	greeting = "...if you dare!"
-	tmpl     = template.Must(template.ParseGlob("templates/*.tmpl.html"))
+	tmpl     = template.Must(template.ParseGlob("templates/*.tmpl.html")) // embed?
 )
 
 type App struct {
@@ -37,9 +37,12 @@ func main() {
 	http.HandleFunc("/{$}", app.homeHandler)
 	http.HandleFunc("/click", app.clickHandler)
 	http.HandleFunc("/stream", app.streamHandler)
+	http.HandleFunc("/metrics", app.metricsHandler)
+	http.HandleFunc("/test", app.testHandler)
+	http.HandleFunc("/metrics.svg", db.metricsAsSvg)
 
-	log.Println("listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Println("listening on :14010")
+	log.Fatal(http.ListenAndServe(":14010", nil))
 }
 
 func createApp(db DB) *App {

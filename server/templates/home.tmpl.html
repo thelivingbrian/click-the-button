@@ -1,0 +1,50 @@
+{{ define "home"}}
+<!doctype html>
+<html lang="en">
+  {{template "page-header"}}
+  <body data-signals='{{.}}'> <!-- note: single-quote '' -->
+    <h1>Click the button</h1>
+    <p data-text="$message"></p>
+
+    <button data-on-click="@post('click')">Click</button><br />
+    <div data-on-load="@get('stream')">
+        Total Clicks: <span data-text="$counter"></span>
+    </div>
+    <br />
+
+    <a href="#">Notable Clicks</a><br />
+    <a href="#">Show Graph</a><br />
+    <a href="#">About</a>
+
+    <div id="modal-container" data-show="$showModal">
+      <div id="modal-content">
+        <h2>Metrics</h2>
+        <a href="#" data-on-click="@get('test')">Hide</a>
+        <div class="range-buttons" style="margin-bottom:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+          <button data-range="1h">1h</button>
+          <button data-range="1d">1d</button>
+          <button data-range="2d">2d</button>
+          <button data-range="1w">1w</button>
+          <button data-range="all">All‑Time</button>
+        </div>
+
+        <canvas id="mChart" height="240"></canvas>
+      </div>
+    </div>
+  </body>
+</html>
+{{ end }}
+
+{{ define "page-header"}}
+<head>
+  <meta charset="utf-8">
+  <title>Click the Button</title>
+
+  <script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.11/bundles/datastar.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+  <script src="assets/metrics.js"></script>
+
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+{{ end }}
