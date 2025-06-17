@@ -39,6 +39,7 @@ func main() {
 	http.HandleFunc("/{$}", app.homeHandler)
 	http.HandleFunc("/click", app.clickHandler)
 	http.HandleFunc("/stream", app.streamHandler)
+	http.HandleFunc("/metrics/toggle", app.metricsToggle)
 	http.HandleFunc("/metrics/feed", app.metricsFeed)
 	http.HandleFunc("/metrics", app.metricsHandler)
 	http.HandleFunc("/test", app.testHandler)

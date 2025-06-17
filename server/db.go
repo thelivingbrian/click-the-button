@@ -69,6 +69,7 @@ func backupWithVacuumInto(ctx context.Context, db DB, dir string) error {
 	}
 
 	// If a backup for this date already exists, remove it so VACUUM INTO can recreate it.
+	// Possibly not great - May want to filter by quantity or age instead.
 	if err := os.Remove(filename); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -154,7 +155,7 @@ func (b *Broadcaster) Publish(p Point) {
 func (app *App) sendPeriodicBroadcasts() {
 	// Add guard clause based on config
 	go func() {
-		ticker := time.NewTicker(1 * time.Second) // Source from config
+		ticker := time.NewTicker(5 * time.Second) // Source from config
 		defer ticker.Stop()
 
 		var previousClickCount, previousViewCount int64

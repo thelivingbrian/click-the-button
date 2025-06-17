@@ -24,7 +24,7 @@ func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	signal := HomePageSignals{
 		Message:   greeting,
 		Counter:   app.clicks.Load(),
-		ShowModal: true,
+		ShowModal: false,
 	}
 
 	bytes, err := json.Marshal(&signal)
@@ -129,6 +129,22 @@ func (app *App) metricsFeed(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done(): // client went away
 			return
 		}
+	}
+}
+
+func (app *App) metricsToggle(w http.ResponseWriter, r *http.Request) {
+	var signals HomePageSignals
+	if err := datastar.ReadSignals(r, &signals); err != nil {
+		fmt.Println(err)
+		return
+	}
+	//signals.Counter = int(clicks.Add(1))
+
+	sse := datastar.NewSSE(w, r)
+	if err := sse.MarshalAndMergeSignals(&Signal{"showModal": !signals.ShowModal}); err != nil {
+		fmt.Println(err)
+		// sse.ConsoleError(err, nil)
+		return
 	}
 }
 
