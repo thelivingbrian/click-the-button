@@ -12,6 +12,20 @@ async function load() {
 
     // Default view is All‑Time.
     createChart(fullLabels, fullClicks, fullViews);
+
+    const es = new EventSource('/metrics/feed');
+
+    es.addEventListener('point', e => {
+        console.log('New data point received:', e.data);
+        const p = JSON.parse(e.data);
+        fullLabels.push(new Date(p.ts * 1000));
+        fullClicks.push(p.clicks);
+        fullViews.push(p.views);
+
+        chart.update('none'); // no animation – keeps it snappy
+    });
+
+    es.onerror = () => console.log('SSE error – browser will retry automatically');
 }
 
 function createChart(labels, clicks, views) {
@@ -54,11 +68,12 @@ function createChart(labels, clicks, views) {
     }
 
     const now = Date.now();
-    const ranges = {
-        '1h': 1 * 60 * 60 * 1000,
-        '1d': 24 * 60 * 60 * 1000,
-        '2d': 2 * 24 * 60 * 60 * 1000,
-        '1w': 7 * 24 * 60 * 60 * 1000,
+    const ranges = { // In milliseconds
+        '5m':   5 * 60 * 1000,
+        '1h':   1 * 60 * 60 * 1000,
+        '1d':  24 * 60 * 60 * 1000,
+        '2d':   2 * 24 * 60 * 60 * 1000,
+        '1w':   7 * 24 * 60 * 60 * 1000,
     };
     const cutoff = now - ranges[range];
 
@@ -75,11 +90,11 @@ function createChart(labels, clicks, views) {
 
 // Attach handlers to buttons once DOM is loaded.
 document.addEventListener('DOMContentLoaded', () => {
-document.querySelectorAll('.range-buttons button').forEach(btn => {
-    btn.addEventListener('click', () => {
-    filterRange(btn.dataset.range);
+    document.querySelectorAll('.range-buttons button').forEach(btn => {
+        btn.addEventListener('click', () => {
+        filterRange(btn.dataset.range);
+        });
     });
-});
 
-load();
+    load();
 });

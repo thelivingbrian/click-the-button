@@ -71,8 +71,8 @@ func (app *App) streamHandler(w http.ResponseWriter, r *http.Request) {
 
 type Point struct {
 	Ts     int64 `json:"ts"`
-	Clicks int   `json:"clicks"`
-	Views  int   `json:"views"`
+	Clicks int64 `json:"clicks"`
+	Views  int64 `json:"views"`
 }
 
 func (app *App) metricsHandler(w http.ResponseWriter, r *http.Request) {
@@ -90,6 +90,46 @@ func (app *App) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(pts)
+}
+
+func (app *App) metricsFeed(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	// Subscribe to new points
+	ch := app.broadcaster.Subscribe()
+	defer app.broadcaster.Unsubscribe(ch)
+
+	// (If you want resume support, look at r.Header.Get("Last-Event-ID"))
+
+	// Keep-alive comment every 30 s to stop proxies from closing idle conn
+	keepAlive := time.NewTicker(30 * time.Second)
+	defer keepAlive.Stop()
+
+	for {
+		select {
+		case p := <-ch:
+			// ts is a perfect event ID – makes resuming trivial
+			fmt.Fprintf(w, "id: %d\nevent: point\ndata: ", p.Ts)
+			_ = json.NewEncoder(w).Encode(p) // adds trailing \n
+			fmt.Fprint(w, "\n")              // blank line = end of msg
+			flusher.Flush()
+
+		case <-keepAlive.C:
+			fmt.Fprint(w, ": ping\n\n")
+			flusher.Flush()
+
+		case <-r.Context().Done(): // client went away
+			return
+		}
+	}
 }
 
 ///////////////////////////////////////////////////////////////
