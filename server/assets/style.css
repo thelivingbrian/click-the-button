@@ -3,7 +3,7 @@ body {
 }
 
 
-/* Modal Content */
+/*           Modal        */
 
 #modal-container {
   position: fixed;
@@ -70,11 +70,4 @@ body {
   background: #007bff;
   border-color: #007bff;
   color: white;
-}
-
-/* Verify this. */
-#modal-content canvas#mChart {
-  width: 100% !important;  /* force full width */
-  height: auto;
-  border-radius: 0.25rem;
 }
