@@ -3,27 +3,26 @@ body {
 }
 
 
-/* Modal backdrop/container */
+/* Modal Content */
+
 #modal-container {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  display: flex;               /* hidden by default */
+  display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.5);
   z-index: 1000;
 }
 
-/* Modal box */
 #modal-content {
   background: #fff;
   border-radius: 0.5rem;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  max-width: 600px;
-  width: 90%;
+  width: 80%;
   padding: 1.5rem;
   box-sizing: border-box;
   display: flex;
@@ -31,11 +30,11 @@ body {
   gap: 1rem;
 }
 
-/* Header (title + hide link) */
 #modal-content > h2 {
   margin: 0;
   font-size: 1.5rem;
 }
+
 #modal-content > a {
   align-self: flex-end;
   text-decoration: none;
@@ -43,18 +42,17 @@ body {
   color: #555;
   cursor: pointer;
 }
+
 #modal-content > a:hover {
   color: #000;
 }
 
-/* Range buttons container */
 .range-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-/* Individual range buttons */
 .range-buttons button {
   padding: 0.4rem 0.8rem;
   border: 1px solid #ccc;
@@ -63,16 +61,18 @@ body {
   cursor: pointer;
   font-size: 0.9rem;
 }
+
 .range-buttons button:hover {
   background: #e8e8e8;
 }
+
 .range-buttons button.active {
   background: #007bff;
   border-color: #007bff;
   color: white;
 }
 
-/* Chart canvas */
+/* Verify this. */
 #modal-content canvas#mChart {
   width: 100% !important;  /* force full width */
   height: auto;

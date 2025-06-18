@@ -107,19 +107,16 @@ func (app *App) metricsFeed(w http.ResponseWriter, r *http.Request) {
 	ch := app.broadcaster.Subscribe()
 	defer app.broadcaster.Unsubscribe(ch)
 
-	// (If you want resume support, look at r.Header.Get("Last-Event-ID"))
-
-	// Keep-alive comment every 30 s to stop proxies from closing idle conn
+	// Keep-alive ping to stop proxies from closing idle conn
 	keepAlive := time.NewTicker(30 * time.Second)
 	defer keepAlive.Stop()
 
 	for {
 		select {
 		case p := <-ch:
-			// ts is a perfect event ID – makes resuming trivial
 			fmt.Fprintf(w, "id: %d\nevent: point\ndata: ", p.Ts)
-			_ = json.NewEncoder(w).Encode(p) // adds trailing \n
-			fmt.Fprint(w, "\n")              // blank line = end of msg
+			_ = json.NewEncoder(w).Encode(p)
+			fmt.Fprint(w, "\n")
 			flusher.Flush()
 
 		case <-keepAlive.C:
@@ -138,12 +135,10 @@ func (app *App) metricsToggle(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 		return
 	}
-	//signals.Counter = int(clicks.Add(1))
 
 	sse := datastar.NewSSE(w, r)
 	if err := sse.MarshalAndMergeSignals(&Signal{"showModal": !signals.ShowModal}); err != nil {
 		fmt.Println(err)
-		// sse.ConsoleError(err, nil)
 		return
 	}
 }
@@ -153,12 +148,14 @@ func (app *App) metricsToggle(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) testHandler(w http.ResponseWriter, r *http.Request) {
 	sse := datastar.NewSSE(w, r)
+
 	sse.MergeFragments(`
 	<div id="modal-content">
 		<h2>Metrics B</h2>
 		<img src="metrics.svg" alt="Clicks over time"><br />
 		<br />
-		<a href="#" data-on-click="@get('test')">Back</a>
+		<a href="#" data-on-click="@get('metrics')">Back</a>
+        <a href="#" data-on-click="@get('metrics/toggle')">Hide</a>
 	</div>
 	`)
 	sse.ExecuteScript(`console.log(window.ds.store.signal('clicks').value)`)
