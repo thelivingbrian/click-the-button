@@ -10,16 +10,18 @@ const ranges = {                   // range is in ms
   '1w':  7 * 24 * 60 * 60 * 1000,
 };
 
+
 async function load() {
-  const res  = await fetch('metrics');
-  const data = await res.json();
+    if (fullLabels.length == 0 && fullClicks.length == 0 && fullViews.length == 0) {
+        const res  = await fetch('metrics');
+        const data = await res.json();
+        fullLabels = data.map(p => new Date(p.ts * 1000));
+        fullClicks = data.map(p => p.clicks);
+        fullViews  = data.map(p => p.views);
+    }
 
-  fullLabels = data.map(p => new Date(p.ts * 1000));
-  fullClicks = data.map(p => p.clicks);
-  fullViews  = data.map(p => p.views);
-
-  createChart();                // build once
-  updateWindow();               // needed ?
+    createChart();                // build once
+    // updateWindow();               // needed ?
 
   const es = new EventSource('/metrics/feed');
   es.addEventListener('point', e => {
@@ -85,11 +87,15 @@ function updateWindow() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  document
+  addButtonListeners();
+  load();
+});
+
+function addButtonListeners(){
+    document
     .querySelectorAll('.range-buttons button')
     .forEach(btn =>
       btn.addEventListener('click', () => setRange(btn.dataset.range))
     );
 
-  load();
-});
+}

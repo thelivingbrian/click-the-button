@@ -82,12 +82,19 @@ func (app *App) metricsHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Error querying metrics:", err)
 		return
 	}
+	defer rows.Close()
+
 	var pts []Point
 	for rows.Next() {
 		var p Point
 		rows.Scan(&p.Ts, &p.Clicks, &p.Views)
 		pts = append(pts, p)
 	}
+	if err := rows.Err(); err != nil {
+		http.Error(w, "rows error", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(pts)
 }
@@ -115,9 +122,17 @@ func (app *App) metricsFeed(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case p := <-ch:
-			fmt.Fprintf(w, "id: %d\nevent: point\ndata: ", p.Ts)
-			_ = json.NewEncoder(w).Encode(p)
-			fmt.Fprint(w, "\n")
+			if deadlineWriter, ok := w.(interface{ SetWriteDeadline(time.Time) error }); ok {
+				_ = deadlineWriter.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			}
+			// -------------------------------------------------------
+			if _, err := fmt.Fprintf(w, "id:%d\nevent:point\ndata:", p.Ts); err != nil {
+				return // client gone or slow ⇒ drop
+			}
+			if err := json.NewEncoder(w).Encode(p); err != nil {
+				return
+			}
+			fmt.Fprint(w, "\n\n")
 			flusher.Flush()
 
 		case <-keepAlive.C:
@@ -149,17 +164,42 @@ func (app *App) metricsToggle(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) testHandler(w http.ResponseWriter, r *http.Request) {
 	sse := datastar.NewSSE(w, r)
-
 	sse.MergeFragments(`
 	<div id="modal-content">
 		<h2>Metrics B</h2>
 		<img src="metrics.svg" alt="Clicks over time"><br />
 		<br />
-		<a href="#" data-on-click="@get('metrics')">Back</a>
+		<a href="#" data-on-click="@get('reload')">Back</a>
         <a href="#" data-on-click="@get('metrics/toggle')">Hide</a>
 	</div>
 	`)
-	sse.ExecuteScript(`console.log(window.ds.store.signal('clicks').value)`)
+	sse.ExecuteScript(`console.log("Hello, world!")`)
+}
+
+func (app *App) reloadHandler(w http.ResponseWriter, r *http.Request) {
+	sse := datastar.NewSSE(w, r)
+	// Weird shrinking effect
+	// sse.MergeFragments(`
+	// <div id="modal-content">
+	//     <h2>Metrics</h2>
+	//     <div class="range-buttons" style="margin-bottom:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+	//       <button data-range="5m">5m</button>
+	//       <button data-range="1h">1h</button>
+	//       <button data-range="1d">1d</button>
+	//       <button data-range="2d">2d</button>
+	//       <button data-range="1w">1w</button>
+	//       <button data-range="all">All‑Time</button>
+	//     </div>
+	//     <canvas id="mChart"></canvas>
+	//     <a href="#" data-on-click="@get('test')">Alternate</a>
+	//     <a href="#" data-on-click="@get('metrics/toggle')">Hide</a>
+	//   </div>
+	// </div>
+	// `)
+	sse.ExecuteScript(`
+	// addButtonListeners()
+    load();
+`)
 }
 
 func (db DB) metricsAsSvg(w http.ResponseWriter, r *http.Request) {

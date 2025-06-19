@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"sync/atomic"
 	"text/template"
 	"time"
@@ -35,6 +36,13 @@ func main() {
 	app.takePeriodicSnapshots()
 	app.sendPeriodicBroadcasts()
 
+	go func() {
+		log.Println("pprof listening on :6060")
+		if err := http.ListenAndServe(":6060", nil); err != nil {
+			log.Fatalf("pprof server failed: %v", err)
+		}
+	}()
+
 	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 	http.HandleFunc("/{$}", app.homeHandler)
 	http.HandleFunc("/click", app.clickHandler)
@@ -43,6 +51,7 @@ func main() {
 	http.HandleFunc("/metrics/feed", app.metricsFeed)
 	http.HandleFunc("/metrics", app.metricsHandler)
 	http.HandleFunc("/test", app.testHandler)
+	http.HandleFunc("/reload", app.reloadHandler)
 	http.HandleFunc("/metrics.svg", db.metricsAsSvg)
 
 	log.Println("listening on :14010")
