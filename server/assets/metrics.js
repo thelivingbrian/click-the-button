@@ -10,20 +10,19 @@ const ranges = {                   // range is in ms
   '1w':  7 * 24 * 60 * 60 * 1000,
 };
 
-
 async function load() {
     if (fullLabels.length == 0 && fullClicks.length == 0 && fullViews.length == 0) {
         const res  = await fetch('metrics');
         const data = await res.json();
+        
         fullLabels = data.map(p => new Date(p.ts * 1000));
         fullClicks = data.map(p => p.clicks);
         fullViews  = data.map(p => p.views);
+        
+        createChart();
     }
 
-    createChart();                // build once
-    // updateWindow();               // needed ?
-
-  const es = new EventSource('/metrics/feed');
+  const es = getEventStream();
   es.addEventListener('point', e => {
     const p = JSON.parse(e.data);
     fullLabels.push(new Date(p.ts * 1000));
@@ -64,6 +63,18 @@ function createChart() {
       }
     }
   });
+}
+
+/* ────────────────── Event stream singleton ────────────────── */
+
+let es;
+
+function getEventStream() {
+  if (es) return es;
+
+  es = new EventSource('/metrics/feed');
+  window.addEventListener('beforeunload', () => es.close());
+  return es;
 }
 
 /* ───────────────── window helpers ───────────────── */
