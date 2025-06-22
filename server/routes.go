@@ -105,41 +105,46 @@ func (app *App) metricsFeed(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
+	rc := http.NewResponseController(w)
+
+	if err := rc.Flush(); err != nil {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 		return
 	}
 
-	// Subscribe to new points
+	// Listen for other points
 	ch := app.broadcaster.Subscribe()
 	defer app.broadcaster.Unsubscribe(ch)
 
-	// Keep-alive ping to stop proxies from closing idle conn
 	keepAlive := time.NewTicker(30 * time.Second)
 	defer keepAlive.Stop()
 
 	for {
 		select {
-		case p := <-ch:
-			if deadlineWriter, ok := w.(interface{ SetWriteDeadline(time.Time) error }); ok {
-				_ = deadlineWriter.SetWriteDeadline(time.Now().Add(5 * time.Second))
-			}
-			// -------------------------------------------------------
-			if _, err := fmt.Fprintf(w, "id:%d\nevent:point\ndata:", p.Ts); err != nil {
-				return // client gone or slow ⇒ drop
-			}
-			if err := json.NewEncoder(w).Encode(p); err != nil {
+		case point := <-ch:
+			_ = rc.SetWriteDeadline(time.Now().Add(5 * time.Second))
+
+			if _, err := fmt.Fprintf(w, "id:%d\nevent:point\ndata:", point.Ts); err != nil {
 				return
 			}
-			fmt.Fprint(w, "\n\n")
-			flusher.Flush()
+			if err := json.NewEncoder(w).Encode(point); err != nil {
+				return
+			}
+			if _, err := fmt.Fprint(w, "\n\n"); err != nil {
+				return
+			}
+
+			if err := rc.Flush(); err != nil {
+				return
+			}
 
 		case <-keepAlive.C:
 			fmt.Fprint(w, ": ping\n\n")
-			flusher.Flush()
+			if err := rc.Flush(); err != nil {
+				return
+			}
 
-		case <-r.Context().Done(): // client went away
+		case <-r.Context().Done():
 			return
 		}
 	}
