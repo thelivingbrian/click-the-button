@@ -17,15 +17,15 @@
       - [-] vscode extension
 - [-] Modal window
   - [-] Toggle via signal
-  - [ ] Send fragment
-    - [ ] Possibly uneeded but prototype has consequences
-    - [ ] Test then remove  
+  - [-] Send fragment
+    - [-] Possibly uneeded but prototype has consequences
+      - [-] Test then remove  
 - [ ] Notable Clicks - Skip ? 
   - [ ] prompt
   - [ ] verify 
   - [ ] record in db
   - [ ] "Final" click ? 
-- [ ] Graph 
+- [-] Graph 
   - [-] server sided
   - [-] client sided
   - [-] all-time
@@ -34,6 +34,7 @@
   - [-] real time updates 
 - [ ] Build / Deploy
   - [ ] Add GH Actions pipeline
+  - [ ] Add .env
 - [ ] Add Button "B"
   - [ ] Chart
   - [ ] Names
