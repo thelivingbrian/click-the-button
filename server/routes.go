@@ -24,7 +24,7 @@ func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	signal := HomePageSignals{
 		Message:   greeting,
 		Counter:   app.clicks.Load(),
-		ShowModal: true,
+		ShowModal: false,
 	}
 
 	bytes, err := json.Marshal(&signal)
@@ -71,8 +71,8 @@ func (app *App) streamHandler(w http.ResponseWriter, r *http.Request) {
 
 type Point struct {
 	Ts     int64 `json:"ts"`
-	Clicks int   `json:"clicks"`
-	Views  int   `json:"views"`
+	Clicks int64 `json:"clicks"`
+	Views  int64 `json:"views"`
 }
 
 func (app *App) metricsHandler(w http.ResponseWriter, r *http.Request) {
@@ -82,14 +82,86 @@ func (app *App) metricsHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Error querying metrics:", err)
 		return
 	}
+	defer rows.Close()
+
 	var pts []Point
 	for rows.Next() {
 		var p Point
 		rows.Scan(&p.Ts, &p.Clicks, &p.Views)
 		pts = append(pts, p)
 	}
+	if err := rows.Err(); err != nil {
+		http.Error(w, "rows error", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(pts)
+}
+
+func (app *App) metricsFeed(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	rc := http.NewResponseController(w)
+
+	if err := rc.Flush(); err != nil {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	// Listen for other points
+	ch := app.broadcaster.Subscribe()
+	defer app.broadcaster.Unsubscribe(ch)
+
+	keepAlive := time.NewTicker(30 * time.Second)
+	defer keepAlive.Stop()
+
+	for {
+		select {
+		case point := <-ch:
+			_ = rc.SetWriteDeadline(time.Now().Add(5 * time.Second))
+
+			if _, err := fmt.Fprintf(w, "id:%d\nevent:point\ndata:", point.Ts); err != nil {
+				return
+			}
+			if err := json.NewEncoder(w).Encode(point); err != nil {
+				return
+			}
+			if _, err := fmt.Fprint(w, "\n\n"); err != nil {
+				return
+			}
+
+			if err := rc.Flush(); err != nil {
+				return
+			}
+
+		case <-keepAlive.C:
+			fmt.Fprint(w, ": ping\n\n")
+			if err := rc.Flush(); err != nil {
+				return
+			}
+
+		case <-r.Context().Done():
+			return
+		}
+	}
+}
+
+func (app *App) metricsToggle(w http.ResponseWriter, r *http.Request) {
+	var signals HomePageSignals
+	if err := datastar.ReadSignals(r, &signals); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	sse := datastar.NewSSE(w, r)
+	if err := sse.MarshalAndMergeSignals(&Signal{"showModal": !signals.ShowModal}); err != nil {
+		fmt.Println(err)
+		return
+	}
 }
 
 ///////////////////////////////////////////////////////////////
@@ -102,10 +174,11 @@ func (app *App) testHandler(w http.ResponseWriter, r *http.Request) {
 		<h2>Metrics B</h2>
 		<img src="metrics.svg" alt="Clicks over time"><br />
 		<br />
-		<a href="#" data-on-click="@get('test')">Back</a>
+		<a href="#" data-on-click="@get('reload')">Back</a>
+        <a href="#" data-on-click="@get('metrics/toggle')">Hide</a>
 	</div>
 	`)
-	sse.ExecuteScript(`console.log(window.ds.store.signal('clicks').value)`)
+	sse.ExecuteScript(`console.log("Hello, world!")`)
 }
 
 func (db DB) metricsAsSvg(w http.ResponseWriter, r *http.Request) {

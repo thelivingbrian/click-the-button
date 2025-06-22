@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"sync/atomic"
 	"text/template"
 	"time"
@@ -22,9 +23,10 @@ var (
 )
 
 type App struct {
-	db     DB
-	views  atomic.Int64
-	clicks atomic.Int64
+	db          DB
+	broadcaster *Broadcaster
+	views       atomic.Int64
+	clicks      atomic.Int64
 }
 
 func main() {
@@ -32,12 +34,24 @@ func main() {
 	db := initDB()
 	app := createApp(db)
 	app.takePeriodicSnapshots()
+	app.sendPeriodicBroadcasts()
+
+	go func() {
+		log.Println("pprof listening on :6060")
+		if err := http.ListenAndServe(":6060", nil); err != nil {
+			log.Fatalf("pprof server failed: %v", err)
+		}
+	}()
 
 	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 	http.HandleFunc("/{$}", app.homeHandler)
 	http.HandleFunc("/click", app.clickHandler)
 	http.HandleFunc("/stream", app.streamHandler)
+	http.HandleFunc("/metrics/toggle", app.metricsToggle)
+	http.HandleFunc("/metrics/feed", app.metricsFeed)
 	http.HandleFunc("/metrics", app.metricsHandler)
+
+	// Unused server side graph
 	http.HandleFunc("/test", app.testHandler)
 	http.HandleFunc("/metrics.svg", db.metricsAsSvg)
 
@@ -47,9 +61,10 @@ func main() {
 
 func createApp(db DB) *App {
 	app := App{
-		db:     db,
-		views:  atomic.Int64{},
-		clicks: atomic.Int64{},
+		db:          db,
+		broadcaster: NewBroadcaster(),
+		views:       atomic.Int64{},
+		clicks:      atomic.Int64{},
 	}
 	clickCount, viewCount := fetchMostRecentSnapshot(db)
 	app.clicks.Store(clickCount)
