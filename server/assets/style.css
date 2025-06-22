@@ -3,8 +3,8 @@
   --color-bg-top:  #fdfcfa;
   --color-bg-bot:  #f7faff;
   --color-text:    #333;
-  --color-accent:  #ff7fa3;   /* coral-pink */
-  --color-accent2: #8be9fd;   /* sky-blue  */
+  --color-accent: #8be9fd;   /* sky-blue  */
+  --color-accent2:  #ff7fa3;   /* coral-pink */
   --color-accent3: #ffd97d;   /* sunny yellow */
   --radius-lg:     1rem;
   --radius-pill:   9999px;
@@ -67,7 +67,7 @@ html,body{
 }
 .button-group span{
   font-weight:600;
-  color:var(--color-accent);
+  color:var(--color-accent2);
 }
 
 /* Fancy pill buttons */
