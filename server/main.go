@@ -50,8 +50,9 @@ func main() {
 	http.HandleFunc("/metrics/toggle", app.metricsToggle)
 	http.HandleFunc("/metrics/feed", app.metricsFeed)
 	http.HandleFunc("/metrics", app.metricsHandler)
+
+	// Unused server side graph
 	http.HandleFunc("/test", app.testHandler)
-	http.HandleFunc("/reload", app.reloadHandler)
 	http.HandleFunc("/metrics.svg", db.metricsAsSvg)
 
 	log.Println("listening on :14010")

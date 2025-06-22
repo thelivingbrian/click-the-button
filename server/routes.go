@@ -181,32 +181,6 @@ func (app *App) testHandler(w http.ResponseWriter, r *http.Request) {
 	sse.ExecuteScript(`console.log("Hello, world!")`)
 }
 
-func (app *App) reloadHandler(w http.ResponseWriter, r *http.Request) {
-	sse := datastar.NewSSE(w, r)
-	// Weird shrinking effect
-	// sse.MergeFragments(`
-	// <div id="modal-content">
-	//     <h2>Metrics</h2>
-	//     <div class="range-buttons" style="margin-bottom:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
-	//       <button data-range="5m">5m</button>
-	//       <button data-range="1h">1h</button>
-	//       <button data-range="1d">1d</button>
-	//       <button data-range="2d">2d</button>
-	//       <button data-range="1w">1w</button>
-	//       <button data-range="all">All‑Time</button>
-	//     </div>
-	//     <canvas id="mChart"></canvas>
-	//     <a href="#" data-on-click="@get('test')">Alternate</a>
-	//     <a href="#" data-on-click="@get('metrics/toggle')">Hide</a>
-	//   </div>
-	// </div>
-	// `)
-	sse.ExecuteScript(`
-	// addButtonListeners()
-    load();
-`)
-}
-
 func (db DB) metricsAsSvg(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=120")
 	points, err := fetchPoints(db)
