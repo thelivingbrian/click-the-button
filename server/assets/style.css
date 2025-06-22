@@ -3,9 +3,10 @@
   --color-bg-top:  #fdfcfa;
   --color-bg-bot:  #f7faff;
   --color-text:    #333;
-  --color-accent: #8be9fd;   /* sky-blue  */
-  --color-accent2:  #ff7fa3;   /* coral-pink */
-  --color-accent3: #ffd97d;   /* sunny yellow */
+  --color-accent: #8be9fd;  
+  --color-accent2:  #ff7fa3;   
+  --color-accent3: #ffd97d;
+  --color-accent4: #57bdf4;
   --radius-lg:     1rem;
   --radius-pill:   9999px;
   --shadow-sm:     0 2px 6px rgba(0,0,0,.06);
@@ -101,7 +102,7 @@ button:active{
   text-align:center;
 }
 .links a{
-  color:var(--color-accent);
+  color:var(--color-accent4);
   text-decoration:none;
   font-weight:600;
   transition:color var(--transition);
