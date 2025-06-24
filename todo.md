@@ -20,37 +20,37 @@
   - [-] Send fragment
     - [-] Possibly uneeded but prototype has consequences
       - [-] Test then remove  
-- [ ] Notable Clicks - Skip ? 
-  - [ ] prompt
-  - [ ] verify 
-  - [ ] record in db
-  - [ ] "Final" click ? 
 - [-] Graph 
   - [-] server sided
-    - [ ] Plot views again 
+    - [-] Plot views again 
   - [-] client sided
   - [-] all-time
   - [-] window 
   - [-] last 5 minutes 
   - [-] real time updates 
   - [ ] First Derivative
-- [ ] Build / Deploy
-  - [ ] Add GH Actions pipeline
-  - [ ] Add .env
-- [ ] Add Button "B"
+- [-] Add Button "B"
   - [-] Function
   - [-] Chart
-  - [ ] Names for buttons
-- [ ] Style
+  - [ ] Names for buttons - A / B ? 
+- [-] Style
   - [-] Mobile sizing
   - [-] Homepage
 - [ ] Rate limit
   - [ ] Basic
   - [ ] Cloudfare? 
+- [ ] Build / Deploy
+  - [ ] Add GH Actions pipeline
+  - [ ] Add .env
 
 # V0.0.2
 - [ ] Backups
-    - [ ] Automate trim of backup files
-    - [ ] Automate load of backup file
-    - [ ] investigate failure modes / source of corruption
-    - [ ] add additional backup points
+  - [ ] Automate trim of backup files
+  - [ ] Automate load of backup file
+  - [ ] investigate failure modes / source of corruption
+  - [ ] add additional backup points
+- [ ] Notable Clicks
+  - [ ] prompt
+  - [ ] verify 
+  - [ ] record in db
+  - [ ] "Final" click ? 
