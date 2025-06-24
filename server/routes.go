@@ -215,7 +215,7 @@ func (db DB) metricsAsSvg(w http.ResponseWriter, r *http.Request) {
 
 type ViewPoint struct {
 	Point
-	views int64 // Only used for server side rendering
+	views int64
 }
 
 func fetchPoints(db DB) ([]ViewPoint, error) {
