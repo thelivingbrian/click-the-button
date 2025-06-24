@@ -15,7 +15,8 @@ type Signal map[string]any
 
 type HomePageSignals struct {
 	Message   string `json:"message"`
-	Counter   int64  `json:"counter"`
+	CounterA  int64  `json:"counterA"`
+	CounterB  int64  `json:"counterB"`
 	ShowModal bool   `json:"showModal"`
 }
 
@@ -23,7 +24,8 @@ func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	app.views.Add(1)
 	signal := HomePageSignals{
 		Message:   greeting,
-		Counter:   app.clicks.Load(),
+		CounterA:  app.clicksA.Load(),
+		CounterB:  app.clicksB.Load(),
 		ShowModal: false,
 	}
 
@@ -34,13 +36,23 @@ func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	_ = tmpl.ExecuteTemplate(w, "home", string(bytes))
 }
 
-func (app *App) clickHandler(w http.ResponseWriter, r *http.Request) {
-	count := app.clicks.Add(1)
-	signal := Signal{"counter": count}
+func (app *App) clickAHandler(w http.ResponseWriter, r *http.Request) {
+	count := app.clicksA.Add(1)
+	signal := Signal{"counterA": count}
 
 	sse := datastar.NewSSE(w, r)
 	if err := sse.MarshalAndMergeSignals(&signal); err != nil {
-		log.Println("sse:", err)
+		log.Println("sse error clickA:", err)
+	}
+}
+
+func (app *App) clickBHandler(w http.ResponseWriter, r *http.Request) {
+	count := app.clicksB.Add(1)
+	signal := Signal{"counterB": count}
+
+	sse := datastar.NewSSE(w, r)
+	if err := sse.MarshalAndMergeSignals(&signal); err != nil {
+		log.Println("sse error clickB:", err)
 	}
 }
 
@@ -49,17 +61,27 @@ func (app *App) streamHandler(w http.ResponseWriter, r *http.Request) {
 	sse := datastar.NewSSE(w, r)
 
 	signal := Signal{}
-	previous := int64(0)
+	previousA := int64(0)
+	previousB := int64(0)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	for {
 		select {
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			count := app.clicks.Load()
-			if previous != count {
-				previous = count
-				signal["counter"] = count
+			countA := app.clicksA.Load()
+			if previousA != countA {
+				previousA = countA
+				signal["counterA"] = countA
+				err := sse.MarshalAndMergeSignals(&signal)
+				if err != nil {
+					fmt.Println(err)
+				}
+			}
+			countB := app.clicksB.Load()
+			if previousB != countB {
+				previousB = countB
+				signal["counterB"] = countB
 				err := sse.MarshalAndMergeSignals(&signal)
 				if err != nil {
 					fmt.Println(err)
@@ -70,13 +92,13 @@ func (app *App) streamHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type Point struct {
-	Ts     int64 `json:"ts"`
-	Clicks int64 `json:"clicks"`
-	Views  int64 `json:"views"`
+	Ts      int64 `json:"ts"`
+	ClicksA int64 `json:"clicksA"`
+	ClicksB int64 `json:"clicksB"`
 }
 
 func (app *App) metricsHandler(w http.ResponseWriter, r *http.Request) {
-	rows, err := app.db.Query(`SELECT ts, clicks, views FROM counter_snapshots
+	rows, err := app.db.Query(`SELECT ts, clicksA, clicksB FROM counter_snapshots
                         		ORDER BY ts`)
 	if err != nil {
 		fmt.Println("Error querying metrics:", err)
@@ -87,7 +109,7 @@ func (app *App) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	var pts []Point
 	for rows.Next() {
 		var p Point
-		rows.Scan(&p.Ts, &p.Clicks, &p.Views)
+		rows.Scan(&p.Ts, &p.ClicksA, &p.ClicksB)
 		pts = append(pts, p)
 	}
 	if err := rows.Err(); err != nil {
@@ -191,17 +213,22 @@ func (db DB) metricsAsSvg(w http.ResponseWriter, r *http.Request) {
 	renderSVG(w, points)
 }
 
-func fetchPoints(db DB) ([]Point, error) {
-	rows, err := db.Query(`SELECT ts, clicks, views FROM counter_snapshots ORDER BY ts`)
+type ViewPoint struct {
+	Point
+	views int64
+}
+
+func fetchPoints(db DB) ([]ViewPoint, error) {
+	rows, err := db.Query(`SELECT ts, clicksA, clicksB, views FROM counter_snapshots ORDER BY ts`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var pts []Point
+	var pts []ViewPoint
 	for rows.Next() {
-		var p Point
-		if err := rows.Scan(&p.Ts, &p.Clicks, &p.Views); err != nil {
+		var p ViewPoint
+		if err := rows.Scan(&p.Ts, &p.ClicksA, &p.ClicksB, &p.views); err != nil {
 			return nil, err
 		}
 		pts = append(pts, p)
@@ -209,15 +236,17 @@ func fetchPoints(db DB) ([]Point, error) {
 	return pts, nil
 }
 
-func renderSVG(w http.ResponseWriter, pts []Point) {
+func renderSVG(w http.ResponseWriter, pts []ViewPoint) {
 	x := make([]time.Time, len(pts))
 	clicks := make([]float64, len(pts))
+	clicksB := make([]float64, len(pts))
 	views := make([]float64, len(pts))
 
 	for i, p := range pts {
 		x[i] = time.Unix(p.Ts, 0)
-		clicks[i] = float64(p.Clicks)
-		views[i] = float64(p.Views)
+		clicks[i] = float64(p.ClicksA)
+		clicksB[i] = float64(p.ClicksB)
+		views[i] = float64(p.views)
 	}
 
 	graph := chart.Chart{
@@ -234,9 +263,18 @@ func renderSVG(w http.ResponseWriter, pts []Point) {
 		},
 		Series: []chart.Series{
 			chart.TimeSeries{
-				Name:    "Clicks",
+				Name:    "Clicks A",
 				XValues: x,
 				YValues: clicks,
+			},
+			chart.TimeSeries{
+				Name:    "Clicks B",
+				XValues: x,
+				YValues: clicksB,
+				Style: chart.Style{
+					Show:        true,
+					StrokeColor: chart.ColorRed,
+				},
 			},
 			chart.TimeSeries{
 				Name:    "Views",
@@ -244,7 +282,7 @@ func renderSVG(w http.ResponseWriter, pts []Point) {
 				YValues: views,
 				Style: chart.Style{
 					Show:        true,
-					StrokeColor: chart.ColorRed,
+					StrokeColor: chart.ColorGreen,
 					StrokeWidth: 2.0,
 				},
 			},

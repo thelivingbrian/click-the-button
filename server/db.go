@@ -45,20 +45,20 @@ func initDB() DB {
 	return DB{DB: db}
 }
 
-func fetchMostRecentSnapshot(db DB) (int64, int64) {
-	var clicks, views int64
+func fetchMostRecentSnapshot(db DB) (int64, int64, int64) {
+	var clicksA, clicksB, views int64
 	err := db.QueryRow(`
-		SELECT clicks, views
+		SELECT clicksA, clicksB, views
 		FROM   counter_snapshots
 		ORDER  BY ts DESC
 		LIMIT  1`,
-	).Scan(&clicks, &views)
+	).Scan(&clicksA, &clicksB, &views)
 	if err != nil && err != sql.ErrNoRows {
 		fmt.Println("Fatal error fetching most recent snapshot:", err)
 		panic(err)
 	}
 
-	return clicks, views
+	return clicksA, clicksB, views
 }
 
 func backupWithVacuumInto(ctx context.Context, db DB, dir string) error {
@@ -89,28 +89,31 @@ func (app *App) takePeriodicSnapshots() {
 		ticker := time.NewTicker(snapshotInterval) // Source from config
 		defer ticker.Stop()
 
-		var previousClickCount, previousViewCount int64
+		var previousClickACount, previousClickBCount, previousViewCount int64
 		for range ticker.C {
-			currentClicks := app.clicks.Load()
+			currentClicksA := app.clicksA.Load()
+			currentClicksB := app.clicksB.Load()
 			currentViews := app.views.Load()
-			if currentClicks == previousClickCount && currentViews == previousViewCount {
+			if currentClicksA == previousClickACount &&
+				currentClicksB == previousClickBCount &&
+				currentViews == previousViewCount {
 				continue
 			}
-			fmt.Println("inserting: ", currentClicks, currentViews)
-			if err := insertSnapshot(app.db, currentClicks, currentViews); err != nil {
+			fmt.Println("inserting: ", currentClicksA, currentClicksB, currentViews)
+			if err := insertSnapshot(app.db, currentClicksA, currentClicksB, currentViews); err != nil {
 				log.Println("Error taking snapshot:", err)
 				continue
 			}
-			previousClickCount, previousViewCount = currentClicks, currentViews
+			previousClickACount, previousClickBCount, previousViewCount = currentClicksA, currentClicksB, currentViews
 		}
 	}()
 }
 
-func insertSnapshot(db DB, clicks, views int64) error {
+func insertSnapshot(db DB, clicksA, clicksB, views int64) error {
 	_, err := db.ExecContext(context.Background(),
-		`INSERT INTO counter_snapshots(ts, clicks, views) 
-		VALUES (?,?,?)`,
-		time.Now().UTC().Unix(), clicks, views)
+		`INSERT INTO counter_snapshots(ts, clicksA, clicksB, views) 
+		VALUES (?,?,?,?)`,
+		time.Now().UTC().Unix(), clicksA, clicksB, views)
 	return err
 }
 
@@ -158,19 +161,22 @@ func (app *App) sendPeriodicBroadcasts() {
 		ticker := time.NewTicker(5 * time.Second) // Source from config
 		defer ticker.Stop()
 
-		var previousClickCount, previousViewCount int64
+		var previousClickACount, previousClickBCount, previousViewCount int64
 		for range ticker.C {
-			currentClicks := app.clicks.Load()
+			currentClicksA := app.clicksA.Load()
+			currentClicksB := app.clicksB.Load()
 			currentViews := app.views.Load()
-			if currentClicks == previousClickCount && currentViews == previousViewCount {
+			if currentClicksA == previousClickACount &&
+				currentClicksB == previousClickBCount &&
+				currentViews == previousViewCount {
 				continue
 			}
 			app.broadcaster.Publish(Point{
-				Ts:     time.Now().UTC().Unix(),
-				Clicks: currentClicks,
-				Views:  currentViews,
+				Ts:      time.Now().UTC().Unix(),
+				ClicksA: currentClicksA,
+				ClicksB: currentClicksB,
 			})
-			previousClickCount, previousViewCount = currentClicks, currentViews
+			previousClickACount, previousClickBCount, previousViewCount = currentClicksA, currentClicksB, currentViews
 		}
 	}()
 }

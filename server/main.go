@@ -26,7 +26,8 @@ type App struct {
 	db          DB
 	broadcaster *Broadcaster
 	views       atomic.Int64
-	clicks      atomic.Int64
+	clicksA     atomic.Int64
+	clicksB     atomic.Int64
 }
 
 func main() {
@@ -45,7 +46,8 @@ func main() {
 
 	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 	http.HandleFunc("/{$}", app.homeHandler)
-	http.HandleFunc("/click", app.clickHandler)
+	http.HandleFunc("/click/A", app.clickAHandler)
+	http.HandleFunc("/click/B", app.clickBHandler)
 	http.HandleFunc("/stream", app.streamHandler)
 	http.HandleFunc("/metrics/toggle", app.metricsToggle)
 	http.HandleFunc("/metrics/feed", app.metricsFeed)
@@ -64,12 +66,14 @@ func createApp(db DB) *App {
 		db:          db,
 		broadcaster: NewBroadcaster(),
 		views:       atomic.Int64{},
-		clicks:      atomic.Int64{},
+		clicksA:     atomic.Int64{},
+		clicksB:     atomic.Int64{},
 	}
-	clickCount, viewCount := fetchMostRecentSnapshot(db)
-	app.clicks.Store(clickCount)
+	clickCountA, clickCountB, viewCount := fetchMostRecentSnapshot(db)
+	app.clicksA.Store(clickCountA)
+	app.clicksB.Store(clickCountB)
 	app.views.Store(viewCount)
-	if clickCount != 0 || viewCount != 0 {
+	if viewCount != 0 {
 		backupWithVacuumInto(context.Background(), db, backupDirectory)
 	}
 	return &app

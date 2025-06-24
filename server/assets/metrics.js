@@ -1,4 +1,4 @@
-let fullLabels = [], fullClicks = [], fullViews = [];
+let fullLabels = [], fullClicksA = [], fullClicksB = [];
 let chart;
 let currentRange = 'all';
 
@@ -11,13 +11,16 @@ const ranges = {                   // range is in ms
 };
 
 async function load() {
-    if (fullLabels.length == 0 && fullClicks.length == 0 && fullViews.length == 0) {
+    if (fullLabels.length == 0 && fullClicksA.length == 0 && fullClicksB.length == 0) {
         const res  = await fetch('metrics');
         const data = await res.json();
+        if (!data) {
+            return
+        }
         
         fullLabels = data.map(p => new Date(p.ts * 1000));
-        fullClicks = data.map(p => p.clicks);
-        fullViews  = data.map(p => p.views);
+        fullClicksA = data.map(p => p.clicksA);
+        fullClicksB  = data.map(p => p.clicksB);
         
         createChart();
     }
@@ -26,8 +29,8 @@ async function load() {
   es.addEventListener('point', e => {
     const p = JSON.parse(e.data);
     fullLabels.push(new Date(p.ts * 1000));
-    fullClicks.push(p.clicks);
-    fullViews.push(p.views);
+    fullClicksA.push(p.clicksA);
+    fullClicksB.push(p.clicksB);
 
     updateWindow();             // slide window if not “all”
     chart.update('none');
@@ -44,8 +47,8 @@ function createChart() {
     data: {
       labels: fullLabels,
       datasets: [
-        { label: 'Clicks', data: fullClicks, borderWidth: 1 },
-        { label: 'Views',  data: fullViews,  borderWidth: 1 }
+        { label: 'Clicks A', data: fullClicksA, borderWidth: 1 },
+        { label: 'Clicks B',  data: fullClicksB,  borderWidth: 1 }
       ]
     },
     options: {
