@@ -1,4 +1,3 @@
-/* ----------  Basic theme tokens  ---------- */
 :root {
   --color-bg-top:  #fdfcfa;
   --color-bg-bot:  #f7faff;
@@ -15,7 +14,6 @@
   --transition:    120ms ease;
 }
 
-/* ----------  Global baseline  ---------- */
 html,body{
   margin:0;
   padding:0;
@@ -71,7 +69,6 @@ html,body{
   color:var(--color-accent2);
 }
 
-/* Fancy pill buttons */
 button{
   appearance:none;
   border:none;
@@ -167,10 +164,10 @@ button:active{
 
 /* ----------  Chart canvas  ---------- */
 #mChart{
-  width:100% !important;   /* Chart.js respects the element’s width */
+  width:100%;
 }
 
-/* ----------  Small screens tweaks  ---------- */
+/* ----------  Small screens  ---------- */
 @media (max-width:480px){
   .button-group{
     padding:0.85rem 1.2rem;
