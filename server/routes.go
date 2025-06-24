@@ -213,17 +213,22 @@ func (db DB) metricsAsSvg(w http.ResponseWriter, r *http.Request) {
 	renderSVG(w, points)
 }
 
-func fetchPoints(db DB) ([]Point, error) {
-	rows, err := db.Query(`SELECT ts, clicksA, clicksB FROM counter_snapshots ORDER BY ts`)
+type ViewPoint struct {
+	Point
+	views int64 // Only used for server side rendering
+}
+
+func fetchPoints(db DB) ([]ViewPoint, error) {
+	rows, err := db.Query(`SELECT ts, clicksA, clicksB, views FROM counter_snapshots ORDER BY ts`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var pts []Point
+	var pts []ViewPoint
 	for rows.Next() {
-		var p Point
-		if err := rows.Scan(&p.Ts, &p.ClicksA, &p.ClicksB); err != nil {
+		var p ViewPoint
+		if err := rows.Scan(&p.Ts, &p.ClicksA, &p.ClicksB, &p.views); err != nil {
 			return nil, err
 		}
 		pts = append(pts, p)
@@ -231,15 +236,17 @@ func fetchPoints(db DB) ([]Point, error) {
 	return pts, nil
 }
 
-func renderSVG(w http.ResponseWriter, pts []Point) {
+func renderSVG(w http.ResponseWriter, pts []ViewPoint) {
 	x := make([]time.Time, len(pts))
 	clicks := make([]float64, len(pts))
+	clicksB := make([]float64, len(pts))
 	views := make([]float64, len(pts))
 
 	for i, p := range pts {
 		x[i] = time.Unix(p.Ts, 0)
 		clicks[i] = float64(p.ClicksA)
-		views[i] = float64(p.ClicksB)
+		clicksB[i] = float64(p.ClicksB)
+		views[i] = float64(p.views)
 	}
 
 	graph := chart.Chart{
@@ -263,10 +270,19 @@ func renderSVG(w http.ResponseWriter, pts []Point) {
 			chart.TimeSeries{
 				Name:    "Clicks B",
 				XValues: x,
-				YValues: views,
+				YValues: clicksB,
 				Style: chart.Style{
 					Show:        true,
 					StrokeColor: chart.ColorRed,
+				},
+			},
+			chart.TimeSeries{
+				Name:    "Views",
+				XValues: x,
+				YValues: views,
+				Style: chart.Style{
+					Show:        true,
+					StrokeColor: chart.ColorGreen,
 					StrokeWidth: 2.0,
 				},
 			},
