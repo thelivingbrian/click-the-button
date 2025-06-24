@@ -27,20 +27,26 @@
   - [ ] "Final" click ? 
 - [-] Graph 
   - [-] server sided
+    - [ ] Plot views again 
   - [-] client sided
   - [-] all-time
   - [-] window 
   - [-] last 5 minutes 
   - [-] real time updates 
+  - [ ] First Derivative
 - [ ] Build / Deploy
   - [ ] Add GH Actions pipeline
   - [ ] Add .env
 - [ ] Add Button "B"
-  - [ ] Chart
-  - [ ] Names
+  - [-] Function
+  - [-] Chart
+  - [ ] Names for buttons
 - [ ] Style
-  - [ ] Mobile sizing
-  - [ ] Homepage
+  - [-] Mobile sizing
+  - [-] Homepage
+- [ ] Rate limit
+  - [ ] Basic
+  - [ ] Cloudfare? 
 
 # V0.0.2
 - [ ] Backups
