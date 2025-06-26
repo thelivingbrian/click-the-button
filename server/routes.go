@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path"
 	"time"
 
 	datastar "github.com/starfederation/datastar/sdk/go"
@@ -19,6 +20,9 @@ type HomePageSignals struct {
 	CounterB  int64  `json:"counterB"`
 	ShowModal bool   `json:"showModal"`
 }
+
+/////////////////////////////////////////////////////////////
+// Home
 
 func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	app.views.Add(1)
@@ -36,25 +40,47 @@ func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	_ = tmpl.ExecuteTemplate(w, "home", string(bytes))
 }
 
-func (app *App) clickAHandler(w http.ResponseWriter, r *http.Request) {
+/////////////////////////////////////////////////////////////
+// Click
+
+func (app *App) clickHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	switch path.Base(r.URL.Path) {
+	case "A":
+		signal := app.ClickA()
+		sse := datastar.NewSSE(w, r)
+		if err := sse.MarshalAndMergeSignals(&signal); err != nil {
+			log.Println("sse error clickA:", err)
+		}
+
+	case "B":
+		signal := app.ClickB()
+		sse := datastar.NewSSE(w, r)
+		if err := sse.MarshalAndMergeSignals(&signal); err != nil {
+			log.Println("sse error clickB:", err)
+		}
+
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func (app *App) ClickA() Signal {
 	count := app.clicksA.Add(1)
-	signal := Signal{"counterA": count}
-
-	sse := datastar.NewSSE(w, r)
-	if err := sse.MarshalAndMergeSignals(&signal); err != nil {
-		log.Println("sse error clickA:", err)
-	}
+	return Signal{"counterA": count}
 }
 
-func (app *App) clickBHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) ClickB() Signal {
 	count := app.clicksB.Add(1)
-	signal := Signal{"counterB": count}
-
-	sse := datastar.NewSSE(w, r)
-	if err := sse.MarshalAndMergeSignals(&signal); err != nil {
-		log.Println("sse error clickB:", err)
-	}
+	return Signal{"counterB": count}
 }
+
+/////////////////////////////////////////////////////////////
+// Stream
 
 func (app *App) streamHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Accel-Buffering", "no")
@@ -90,6 +116,9 @@ func (app *App) streamHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
+
+/////////////////////////////////////////////////////////////
+// Metrics
 
 type Point struct {
 	Ts      int64 `json:"ts"`

@@ -12,7 +12,6 @@ const (
 	dbFilePath      = "data/clicks.db"
 	schemaFilePath  = "sql/schema.sql"
 	backupDirectory = "data/backups"
-	//snapshotInterval = 1 * 60 * time.Second
 )
 
 var (
@@ -42,8 +41,7 @@ func main() {
 
 	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 	http.HandleFunc("/{$}", app.homeHandler)
-	http.HandleFunc("/click/A", app.clickAHandler) // if method not post
-	http.HandleFunc("/click/B", app.clickBHandler)
+	http.HandleFunc("/click/", app.clickHandler)
 	http.HandleFunc("/stream", app.streamHandler)
 	http.HandleFunc("/metrics/toggle", app.metricsToggle)
 	http.HandleFunc("/metrics/feed", app.metricsFeed)
