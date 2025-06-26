@@ -189,20 +189,6 @@ func (app *App) metricsToggle(w http.ResponseWriter, r *http.Request) {
 ///////////////////////////////////////////////////////////////
 // Server Side Rendered Chart
 
-func (app *App) testHandler(w http.ResponseWriter, r *http.Request) {
-	sse := datastar.NewSSE(w, r)
-	sse.MergeFragments(`
-	<div id="modal-content">
-		<h2>Metrics B</h2>
-		<img src="metrics.svg" alt="Clicks over time"><br />
-		<br />
-		<a href="#" data-on-click="@get('reload')">Back</a>
-        <a href="#" data-on-click="@get('metrics/toggle')">Hide</a>
-	</div>
-	`)
-	sse.ExecuteScript(`console.log("Hello, world!")`)
-}
-
 func (db DB) metricsAsSvg(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=120")
 	points, err := fetchPoints(db)
