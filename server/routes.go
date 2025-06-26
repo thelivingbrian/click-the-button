@@ -144,7 +144,7 @@ func (app *App) metricsFeed(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case point := <-ch:
-			_ = rc.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			_ = rc.SetWriteDeadline(time.Now().Add(5 * time.Second)) // config ?
 
 			if _, err := fmt.Fprintf(w, "id:%d\nevent:point\ndata:", point.Ts); err != nil {
 				return

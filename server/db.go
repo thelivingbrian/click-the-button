@@ -84,9 +84,11 @@ func backupWithVacuumInto(ctx context.Context, db DB, dir string) error {
 // ---------- Snapshots -------------
 
 func (app *App) takePeriodicSnapshots() {
-	// Add guard clause based on config
+	if !app.configuration.snapshotEnabled() {
+		return
+	}
 	go func() {
-		ticker := time.NewTicker(snapshotInterval) // Source from config
+		ticker := time.NewTicker(app.configuration.snapshotInterval) // Source from config
 		defer ticker.Stop()
 
 		var previousClickACount, previousClickBCount, previousViewCount int64
@@ -156,9 +158,11 @@ func (b *Broadcaster) Publish(p Point) {
 }
 
 func (app *App) sendPeriodicBroadcasts() {
-	// Add guard clause based on config
+	if !app.configuration.broadcastEnabled() {
+		return
+	}
 	go func() {
-		ticker := time.NewTicker(5 * time.Second) // Source from config
+		ticker := time.NewTicker(app.configuration.broadcastInterval) // Source from config
 		defer ticker.Stop()
 
 		var previousClickACount, previousClickBCount, previousViewCount int64

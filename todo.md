@@ -42,6 +42,7 @@
 - [ ] Build / Deploy
   - [ ] Add GH Actions pipeline
   - [ ] Add .env
+- [ ] About page
 
 # V0.0.2
 - [ ] Backups
