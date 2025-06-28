@@ -42,8 +42,11 @@
 - [-] Build
   - [-] Add .env
   - [ ] Track Nginx config?
-- [ ] Unit test
+- [-] Unit test
+  - [-] Basic page / click tests
+  - [ ] Consurrency test 
 - [ ] About page
+- [ ] Add License 
 - [ ] Deploy
   - [ ] Via GH Actions
 
