@@ -36,13 +36,16 @@
 - [-] Style
   - [-] Mobile sizing
   - [-] Homepage
-- [ ] Rate limit
-  - [ ] Basic
+- [-] Rate limit
+  - [-] Basic
   - [ ] Cloudfare? 
-- [ ] Build / Deploy
-  - [ ] Add GH Actions pipeline
-  - [ ] Add .env
+- [-] Build
+  - [-] Add .env
+  - [ ] Track Nginx config?
+- [ ] Unit test
 - [ ] About page
+- [ ] Deploy
+  - [ ] Via GH Actions
 
 # V0.0.2
 - [ ] Backups
