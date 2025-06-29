@@ -31,19 +31,18 @@ async function load() {
     fullClicksB.push(p.clicksB);
 
     if (chart) {
-      updateWindow();             // slide window if not “all”
+      updateWindow();             // slide window
       chart.update('none');
     }
   });
   es.onerror = () => console.log('SSE error – browser will retry automatically');
-  
+
 }
 
-// Triggers on page load
-load()
+load() // Occurs on page load
 
 
-/* ────────────────── Event stream singleton ────────────────── */
+/* ────────────────── Event stream ────────────────── */
 
 let es;
 
@@ -55,30 +54,8 @@ function getEventStream() {
   return es;
 }
 
-/* ───────────────── window helpers ───────────────── */
 
-function setRange(range) {
-  currentRange = range;
-  updateWindow();
-  chart.update('none');
-}
-
-function updateWindow() {
-  const x = chart.options.scales.x;
-  if (currentRange === 'all') {
-    delete x.min;
-    delete x.max;
-    return;
-  }
-  const now = Date.now();
-  x.max = now;
-  x.min = now - ranges[currentRange];
-}
-
-// document.addEventListener('DOMContentLoaded', () => {
-//   addButtonListeners();
-//   load();
-// });
+/* ────────────────── Chart ────────────────── */
 
 function setupChart(){
   addButtonListeners()
@@ -92,7 +69,6 @@ function addButtonListeners(){
       btn.addEventListener('click', () => setRange(btn.dataset.range))
     );
 }
-
 
 function createChart() {
   const ctx = document.getElementById('mChart');
@@ -122,4 +98,22 @@ function createChart() {
       }
     }
   });
+}
+
+function setRange(range) {
+  currentRange = range;
+  updateWindow();
+  chart.update('none');
+}
+
+function updateWindow() {
+  const x = chart.options.scales.x;
+  if (currentRange === 'all') {
+    delete x.min;
+    delete x.max;
+    return;
+  }
+  const now = Date.now();
+  x.max = now;
+  x.min = now - ranges[currentRange];
 }
