@@ -44,8 +44,9 @@
   - [ ] Track Nginx config?
 - [-] Unit test
   - [-] Basic page / click tests
-  - [ ] Consurrency test 
+  - [ ] Concurrency test 
 - [ ] About page
+  - [ ] Modal switch? 
 - [ ] Add License 
 - [ ] Deploy
   - [ ] Via GH Actions
