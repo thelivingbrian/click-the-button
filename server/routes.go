@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path"
 	"time"
 
 	datastar "github.com/starfederation/datastar/sdk/go"
@@ -19,6 +20,9 @@ type HomePageSignals struct {
 	CounterB  int64  `json:"counterB"`
 	ShowModal bool   `json:"showModal"`
 }
+
+/////////////////////////////////////////////////////////////
+// Home
 
 func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	app.views.Add(1)
@@ -36,25 +40,47 @@ func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	_ = tmpl.ExecuteTemplate(w, "home", string(bytes))
 }
 
-func (app *App) clickAHandler(w http.ResponseWriter, r *http.Request) {
+/////////////////////////////////////////////////////////////
+// Click
+
+func (app *App) clickHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	switch path.Base(r.URL.Path) {
+	case "A":
+		signal := app.ClickA()
+		sse := datastar.NewSSE(w, r)
+		if err := sse.MarshalAndMergeSignals(&signal); err != nil {
+			log.Println("sse error clickA:", err)
+		}
+
+	case "B":
+		signal := app.ClickB()
+		sse := datastar.NewSSE(w, r)
+		if err := sse.MarshalAndMergeSignals(&signal); err != nil {
+			log.Println("sse error clickB:", err)
+		}
+
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func (app *App) ClickA() Signal {
 	count := app.clicksA.Add(1)
-	signal := Signal{"counterA": count}
-
-	sse := datastar.NewSSE(w, r)
-	if err := sse.MarshalAndMergeSignals(&signal); err != nil {
-		log.Println("sse error clickA:", err)
-	}
+	return Signal{"counterA": count}
 }
 
-func (app *App) clickBHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) ClickB() Signal {
 	count := app.clicksB.Add(1)
-	signal := Signal{"counterB": count}
-
-	sse := datastar.NewSSE(w, r)
-	if err := sse.MarshalAndMergeSignals(&signal); err != nil {
-		log.Println("sse error clickB:", err)
-	}
+	return Signal{"counterB": count}
 }
+
+/////////////////////////////////////////////////////////////
+// Stream
 
 func (app *App) streamHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Accel-Buffering", "no")
@@ -90,6 +116,9 @@ func (app *App) streamHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
+
+/////////////////////////////////////////////////////////////
+// Metrics
 
 type Point struct {
 	Ts      int64 `json:"ts"`
@@ -144,7 +173,7 @@ func (app *App) metricsFeed(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case point := <-ch:
-			_ = rc.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			_ = rc.SetWriteDeadline(time.Now().Add(5 * time.Second)) // config ?
 
 			if _, err := fmt.Fprintf(w, "id:%d\nevent:point\ndata:", point.Ts); err != nil {
 				return
@@ -188,20 +217,6 @@ func (app *App) metricsToggle(w http.ResponseWriter, r *http.Request) {
 
 ///////////////////////////////////////////////////////////////
 // Server Side Rendered Chart
-
-func (app *App) testHandler(w http.ResponseWriter, r *http.Request) {
-	sse := datastar.NewSSE(w, r)
-	sse.MergeFragments(`
-	<div id="modal-content">
-		<h2>Metrics B</h2>
-		<img src="metrics.svg" alt="Clicks over time"><br />
-		<br />
-		<a href="#" data-on-click="@get('reload')">Back</a>
-        <a href="#" data-on-click="@get('metrics/toggle')">Hide</a>
-	</div>
-	`)
-	sse.ExecuteScript(`console.log("Hello, world!")`)
-}
 
 func (db DB) metricsAsSvg(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=120")
