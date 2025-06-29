@@ -40,6 +40,61 @@ func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	_ = tmpl.ExecuteTemplate(w, "home", string(bytes))
 }
 
+//////////////////////////////////////////////////////////////
+// Modal
+
+func (app *App) aboutHandler(w http.ResponseWriter, r *http.Request) {
+	sse := datastar.NewSSE(w, r)
+	err := sse.MergeFragments(`
+      <div id="modal-content">
+        <h2>About</h2>
+        <div>
+          Here is where the about page content would go.
+        </div>
+        <a href="#" data-on-click="@get('metrics/toggle')">Hide</a>
+      </div>
+	`)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if err := sse.MarshalAndMergeSignals(&Signal{"showModal": true}); err != nil {
+		fmt.Println(err)
+		return
+	}
+}
+
+func (app *App) chartHandler(w http.ResponseWriter, r *http.Request) {
+	sse := datastar.NewSSE(w, r)
+	err := sse.MergeFragments(`
+      <div id="modal-content">
+        <h2>Metrics</h2>
+        <div class="range-buttons" style="margin-bottom:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+          <button data-range="5m">5m</button>
+          <button data-range="1h">1h</button>
+          <button data-range="1d">1d</button>
+          <button data-range="2d">2d</button>
+          <button data-range="1w">1w</button>
+          <button data-range="all">All‑Time</button>
+        </div>
+        <canvas id="mChart"></canvas>
+        <a href="#" data-on-click="@get('metrics/toggle')">Hide</a>
+      </div>
+	`)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if err := sse.MarshalAndMergeSignals(&Signal{"showModal": true}); err != nil {
+		fmt.Println(err)
+		return
+	}
+	if err := sse.ExecuteScript(`setupChart();`); err != nil {
+		fmt.Println(err)
+		return
+	}
+}
+
 /////////////////////////////////////////////////////////////
 // Click
 

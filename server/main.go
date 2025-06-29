@@ -46,6 +46,8 @@ func main() {
 	http.HandleFunc("/metrics/toggle", app.metricsToggle)
 	http.HandleFunc("/metrics/feed", app.metricsFeed)
 	http.HandleFunc("/metrics", app.metricsHandler)
+	http.HandleFunc("/about", app.aboutHandler)
+	http.HandleFunc("/chart", app.chartHandler)
 
 	// Unused server side graph
 	http.HandleFunc("/metrics.svg", db.metricsAsSvg)
