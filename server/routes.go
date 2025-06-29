@@ -51,7 +51,7 @@ func (app *App) aboutHandler(w http.ResponseWriter, r *http.Request) {
         <div>
           Here is where the about page content would go.
         </div>
-        <a href="#" data-on-click="@get('metrics/toggle')">Hide</a>
+        <a href="#" data-on-click="@get('modal/toggle')">Hide</a>
       </div>
 	`)
 	if err != nil {
@@ -78,7 +78,7 @@ func (app *App) chartHandler(w http.ResponseWriter, r *http.Request) {
           <button data-range="all">All‑Time</button>
         </div>
         <canvas id="mChart"></canvas>
-        <a href="#" data-on-click="@get('metrics/toggle')">Hide</a>
+        <a href="#" data-on-click="@get('modal/toggle')">Hide</a>
       </div>
 	`)
 	if err != nil {
@@ -90,6 +90,20 @@ func (app *App) chartHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := sse.ExecuteScript(`setupChart();`); err != nil {
+		fmt.Println(err)
+		return
+	}
+}
+
+func (app *App) modalToggle(w http.ResponseWriter, r *http.Request) {
+	var signals HomePageSignals
+	if err := datastar.ReadSignals(r, &signals); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	sse := datastar.NewSSE(w, r)
+	if err := sse.MarshalAndMergeSignals(&Signal{"showModal": !signals.ShowModal}); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -253,20 +267,6 @@ func (app *App) metricsFeed(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		}
-	}
-}
-
-func (app *App) metricsToggle(w http.ResponseWriter, r *http.Request) {
-	var signals HomePageSignals
-	if err := datastar.ReadSignals(r, &signals); err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	sse := datastar.NewSSE(w, r)
-	if err := sse.MarshalAndMergeSignals(&Signal{"showModal": !signals.ShowModal}); err != nil {
-		fmt.Println(err)
-		return
 	}
 }
 

@@ -12,7 +12,7 @@ const ranges = {                   // range is in ms
 
 async function load() {
   if (fullLabels.length == 0 && fullClicksA.length == 0 && fullClicksB.length == 0) {
-      const res  = await fetch('metrics');
+      const res  = await fetch('metrics/history');
       const data = await res.json();
       if (!data) {
           return
