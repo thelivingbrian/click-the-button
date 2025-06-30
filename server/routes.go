@@ -57,7 +57,7 @@ func (app *App) aboutHandler(w http.ResponseWriter, r *http.Request) {
 			<br /><br />
 			Thanks all for likes, shares, (clicks), and feedback!
 		</p>
-		<a href="#" class="modal-close" data-on-click="@get('modal/toggle')">Hide</a>
+		<a href="#" data-on-click="@get('modal/toggle')">Hide</a>
 	</div>
 	`)
 	if err != nil {

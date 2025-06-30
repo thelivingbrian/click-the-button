@@ -45,8 +45,8 @@
 - [-] Unit test
   - [-] Basic page / click tests
   - [ ] Concurrency test 
-- [ ] About page
-  - [ ] Modal switch? 
+- [-] About page
+  - [-] Modal switch? 
 - [ ] Add License 
 - [ ] Deploy
   - [ ] Via GH Actions
