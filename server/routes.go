@@ -47,12 +47,18 @@ func (app *App) aboutHandler(w http.ResponseWriter, r *http.Request) {
 	sse := datastar.NewSSE(w, r)
 	err := sse.MergeFragments(`
       <div id="modal-content">
-        <h2>About</h2>
-        <div>
-          Here is where the about page content would go.
-        </div>
-        <a href="#" data-on-click="@get('modal/toggle')">Hide</a>
-      </div>
+		<h2>About</h2>
+		<p>
+			<strong>Click&nbsp;the&nbsp;Button</strong> is an experiment in real-time, shared interaction. Every tap you make is streamed live to everyone else, so the counters you see are 100 % human—no bots, no tricks, just collective curiosity.
+			<br /><br />
+			I love building tiny interactive web apps and created <strong>Click&nbsp;the&nbsp;Button</strong> to learn <strong>datastar</strong> after it was proposed to me as an alternative technology for these projects.
+			<br /><br />
+			If you enjoy fast, fun web toys, <a href="https://bloopworld.co" target="_blank" rel="noopener">check out Bloopworld</a>
+			<br /><br />
+			Thanks all for likes, shares, (clicks), and feedback!
+		</p>
+		<a href="#" class="modal-close" data-on-click="@get('modal/toggle')">Hide</a>
+	</div>
 	`)
 	if err != nil {
 		fmt.Println(err)
