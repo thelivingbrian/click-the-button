@@ -47,7 +47,7 @@
   - [ ] Concurrency test 
 - [-] About page
   - [-] Modal switch? 
-- [ ] Add License 
+- [-] Add License 
 - [ ] Deploy
   - [ ] Via GH Actions
 
