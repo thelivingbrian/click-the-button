@@ -53,7 +53,7 @@ func (app *App) aboutHandler(w http.ResponseWriter, r *http.Request) {
 			<br /><br />
 			I love building tiny interactive web apps and created <strong>Click&nbsp;the&nbsp;Button</strong> to learn <strong>datastar</strong> after it was proposed to me as an alternative technology for these projects.
 			<br /><br />
-			If you enjoy fast, fun web toys, <a href="https://bloopworld.co" target="_blank" rel="noopener">check out Bloopworld</a>
+			If you enjoy fast, fun web games, <a href="https://bloopworld.co" target="_blank" rel="noopener">check out Bloopworld</a>
 			<br /><br />
 			Thanks all for likes, shares, (clicks), and feedback!
 		</p>
