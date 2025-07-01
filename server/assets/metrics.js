@@ -11,19 +11,17 @@ const ranges = {                   // range is in ms
 };
 
 async function load() {
-    if (fullLabels.length == 0 && fullClicksA.length == 0 && fullClicksB.length == 0) {
-        const res  = await fetch('metrics');
-        const data = await res.json();
-        if (!data) {
-            return
-        }
-        
-        fullLabels = data.map(p => new Date(p.ts * 1000));
-        fullClicksA = data.map(p => p.clicksA);
-        fullClicksB  = data.map(p => p.clicksB);
-        
-        createChart();
-    }
+  if (fullLabels.length == 0 && fullClicksA.length == 0 && fullClicksB.length == 0) {
+      const res  = await fetch('metrics/history');
+      const data = await res.json();
+      if (!data) {
+          return
+      }
+      
+      fullLabels = data.map(p => new Date(p.ts * 1000));
+      fullClicksA = data.map(p => p.clicksA);
+      fullClicksB  = data.map(p => p.clicksB);
+  }
 
   const es = getEventStream();
   es.addEventListener('point', e => {
@@ -32,10 +30,44 @@ async function load() {
     fullClicksA.push(p.clicksA);
     fullClicksB.push(p.clicksB);
 
-    updateWindow();             // slide window if not “all”
-    chart.update('none');
+    if (chart) {
+      updateWindow();             // slide window
+      chart.update('none');
+    }
   });
   es.onerror = () => console.log('SSE error – browser will retry automatically');
+
+}
+
+load() // Occurs on page load
+
+
+/* ────────────────── Event stream ────────────────── */
+
+let es;
+
+function getEventStream() {
+  if (es) return es;
+
+  es = new EventSource('/metrics/feed');
+  window.addEventListener('beforeunload', () => es.close());
+  return es;
+}
+
+
+/* ────────────────── Chart ────────────────── */
+
+function setupChart(){
+  addButtonListeners()
+  createChart()
+}
+
+function addButtonListeners(){
+    document
+    .querySelectorAll('.range-buttons button')
+    .forEach(btn =>
+      btn.addEventListener('click', () => setRange(btn.dataset.range))
+    );
 }
 
 function createChart() {
@@ -68,20 +100,6 @@ function createChart() {
   });
 }
 
-/* ────────────────── Event stream singleton ────────────────── */
-
-let es;
-
-function getEventStream() {
-  if (es) return es;
-
-  es = new EventSource('/metrics/feed');
-  window.addEventListener('beforeunload', () => es.close());
-  return es;
-}
-
-/* ───────────────── window helpers ───────────────── */
-
 function setRange(range) {
   currentRange = range;
   updateWindow();
@@ -98,18 +116,4 @@ function updateWindow() {
   const now = Date.now();
   x.max = now;
   x.min = now - ranges[currentRange];
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  addButtonListeners();
-  load();
-});
-
-function addButtonListeners(){
-    document
-    .querySelectorAll('.range-buttons button')
-    .forEach(btn =>
-      btn.addEventListener('click', () => setRange(btn.dataset.range))
-    );
-
 }

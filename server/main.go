@@ -36,16 +36,24 @@ func main() {
 	app.takePeriodicSnapshots()
 	app.sendPeriodicBroadcasts()
 
-	// Need seperate mux to ensure pprof is truly disabled
-	launchPprof(config)
+	launchPprof(config) // Need seperate mux to ensure pprof is truly disabled
 
+	// Site
 	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 	http.HandleFunc("/{$}", app.homeHandler)
+
+	// Clicks
 	http.HandleFunc("/click/", app.clickHandler)
+
+	// Updates
 	http.HandleFunc("/stream", app.streamHandler)
-	http.HandleFunc("/metrics/toggle", app.metricsToggle)
 	http.HandleFunc("/metrics/feed", app.metricsFeed)
-	http.HandleFunc("/metrics", app.metricsHandler)
+	http.HandleFunc("/metrics/history", app.metricsHandler)
+
+	// Modals
+	http.HandleFunc("/about", app.aboutHandler)
+	http.HandleFunc("/chart", app.chartHandler)
+	http.HandleFunc("/modal/toggle", app.modalToggle)
 
 	// Unused server side graph
 	http.HandleFunc("/metrics.svg", db.metricsAsSvg)

@@ -40,6 +40,81 @@ func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	_ = tmpl.ExecuteTemplate(w, "home", string(bytes))
 }
 
+//////////////////////////////////////////////////////////////
+// Modal
+
+func (app *App) aboutHandler(w http.ResponseWriter, r *http.Request) {
+	sse := datastar.NewSSE(w, r)
+	err := sse.MergeFragments(`
+      <div id="modal-content">
+		<h2>About</h2>
+		<p>
+			<strong>Click&nbsp;the&nbsp;Button</strong> is an experiment in real-time, shared interaction. Every tap you make is streamed live to everyone else, so the counters you see are 100 % human—no bots, no tricks, just collective curiosity.
+			<br /><br />
+			I love building tiny interactive web apps and created <strong>Click&nbsp;the&nbsp;Button</strong> to learn <strong>datastar</strong> after it was proposed to me as an alternative technology for these projects.
+			<br /><br />
+			If you enjoy fast, fun web games, <a href="https://bloopworld.co" target="_blank" rel="noopener">check out Bloopworld</a>
+			<br /><br />
+			Thanks all for likes, shares, (clicks), and feedback!
+		</p>
+		<a href="#" data-on-click="@get('modal/toggle')">Hide</a>
+	</div>
+	`)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if err := sse.MarshalAndMergeSignals(&Signal{"showModal": true}); err != nil {
+		fmt.Println(err)
+		return
+	}
+}
+
+func (app *App) chartHandler(w http.ResponseWriter, r *http.Request) {
+	sse := datastar.NewSSE(w, r)
+	err := sse.MergeFragments(`
+      <div id="modal-content">
+        <h2>Metrics</h2>
+        <div class="range-buttons" style="margin-bottom:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+          <button data-range="5m">5m</button>
+          <button data-range="1h">1h</button>
+          <button data-range="1d">1d</button>
+          <button data-range="2d">2d</button>
+          <button data-range="1w">1w</button>
+          <button data-range="all">All‑Time</button>
+        </div>
+        <canvas id="mChart"></canvas>
+        <a href="#" data-on-click="@get('modal/toggle')">Hide</a>
+      </div>
+	`)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if err := sse.MarshalAndMergeSignals(&Signal{"showModal": true}); err != nil {
+		fmt.Println(err)
+		return
+	}
+	if err := sse.ExecuteScript(`setupChart();`); err != nil {
+		fmt.Println(err)
+		return
+	}
+}
+
+func (app *App) modalToggle(w http.ResponseWriter, r *http.Request) {
+	var signals HomePageSignals
+	if err := datastar.ReadSignals(r, &signals); err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	sse := datastar.NewSSE(w, r)
+	if err := sse.MarshalAndMergeSignals(&Signal{"showModal": !signals.ShowModal}); err != nil {
+		fmt.Println(err)
+		return
+	}
+}
+
 /////////////////////////////////////////////////////////////
 // Click
 
@@ -198,20 +273,6 @@ func (app *App) metricsFeed(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		}
-	}
-}
-
-func (app *App) metricsToggle(w http.ResponseWriter, r *http.Request) {
-	var signals HomePageSignals
-	if err := datastar.ReadSignals(r, &signals); err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	sse := datastar.NewSSE(w, r)
-	if err := sse.MarshalAndMergeSignals(&Signal{"showModal": !signals.ShowModal}); err != nil {
-		fmt.Println(err)
-		return
 	}
 }
 
