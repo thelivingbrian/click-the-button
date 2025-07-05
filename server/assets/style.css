@@ -145,6 +145,11 @@ button:active{
   color:var(--color-accent2);
 }
 
+.center-text{
+  text-align:center;
+}
+
+
 /* Range-selector buttons inside the modal */
 .range-buttons{
   display:flex;

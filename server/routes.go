@@ -48,15 +48,25 @@ func (app *App) aboutHandler(w http.ResponseWriter, r *http.Request) {
 	err := sse.MergeFragments(`
       <div id="modal-content">
 		<h2>About</h2>
-		<p>
-			<strong>Click&nbsp;the&nbsp;Button</strong> is an experiment in real-time, shared interaction. Every tap you make is streamed live to everyone else, so the counters you see are 100 % human—no bots, no tricks, just collective curiosity.
-			<br /><br />
-			I love building tiny interactive web apps and created <strong>Click&nbsp;the&nbsp;Button</strong> to learn <strong>datastar</strong> after it was proposed to me as an alternative technology for these projects.
-			<br /><br />
-			If you enjoy fast, fun web games, <a href="https://bloopworld.co" target="_blank" rel="noopener">check out Bloopworld</a>
-			<br /><br />
-			Thanks all for likes, shares, (clicks), and feedback!
-		</p>
+		<div>
+			<p>
+				<strong>Click&nbsp;the&nbsp;Button</strong> is an experiment in real-time, shared interaction. Every tap anyone makes is streamed live to everyone else. 
+				<br /><br />
+				<strong>You may try: </strong><br />
+				<ul class="actions">
+					<li>clicking a socially acceptable number of times</li>
+					<li>getting your favorite button to "win"</li>
+					<li>attempting to express your personal affection for each option with the right ratio of clicks</li>
+				</ul>
+				I build tiny interactive experiences and created <strong>Click&nbsp;the&nbsp;Button</strong> to learn <strong>datastar</strong> when it was suggested to me as an alternate technology for these projects.
+			</p>
+			<br />
+			<div class="center-text">
+				If you enjoy fast, fun web games: check out <a href="https://bloopworld.co" target="_blank" rel="noopener">Bloopworld</a>
+				<br /><br />
+				Thanks all for likes, shares, (clicks), and feedback!
+			</div>
+		</div>
 		<a href="#" data-on-click="@get('modal/toggle')">Hide</a>
 	</div>
 	`)

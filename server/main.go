@@ -15,7 +15,7 @@ const (
 )
 
 var (
-	greeting = "...if you dare!"
+	greeting = "Choose your favorite!"
 	tmpl     = template.Must(template.ParseGlob("templates/*.tmpl.html")) // embed?
 )
 

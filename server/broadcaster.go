@@ -50,14 +50,12 @@ func (app *App) sendPeriodicBroadcasts() {
 		ticker := time.NewTicker(app.configuration.broadcastInterval)
 		defer ticker.Stop()
 
-		var previousClickACount, previousClickBCount, previousViewCount int64
+		var previousClickACount, previousClickBCount int64
 		for range ticker.C {
 			currentClicksA := app.clicksA.Load()
 			currentClicksB := app.clicksB.Load()
-			currentViews := app.views.Load()
 			if currentClicksA == previousClickACount &&
-				currentClicksB == previousClickBCount &&
-				currentViews == previousViewCount {
+				currentClicksB == previousClickBCount {
 				continue
 			}
 			app.broadcaster.Publish(Point{
@@ -65,7 +63,7 @@ func (app *App) sendPeriodicBroadcasts() {
 				ClicksA: currentClicksA,
 				ClicksB: currentClicksB,
 			})
-			previousClickACount, previousClickBCount, previousViewCount = currentClicksA, currentClicksB, currentViews
+			previousClickACount, previousClickBCount = currentClicksA, currentClicksB
 		}
 	}()
 }
