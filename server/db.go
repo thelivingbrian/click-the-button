@@ -97,7 +97,6 @@ func (app *App) takePeriodicSnapshots() {
 			currentViews := app.views.Load()
 			if currentClicksA == previousClickACount &&
 				currentClicksB == previousClickBCount {
-				//currentViews == previousViewCount {
 				continue
 			}
 			fmt.Println("inserting: ", currentClicksA, currentClicksB, currentViews)

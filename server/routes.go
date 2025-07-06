@@ -65,6 +65,8 @@ func (app *App) aboutHandler(w http.ResponseWriter, r *http.Request) {
 				If you enjoy fast, fun web games: check out <a href="https://bloopworld.co" target="_blank" rel="noopener">Bloopworld</a>
 				<br /><br />
 				Thanks all for likes, shares, (clicks), and feedback!
+				<br /><br />
+				<a href="https://github.com/thelivingbrian/click-the-button" target="_blank" rel="noopener">Github</a>
 			</div>
 		</div>
 		<a href="#" data-on-click="@get('modal/toggle')">Hide</a>
