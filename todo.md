@@ -27,12 +27,12 @@
   - [-] all-time
   - [-] window 
   - [-] last 5 minutes 
-  - [-] real time updates 
-  - [ ] First Derivative
+  - [-] real time updates
 - [-] Add Button "B"
   - [-] Function
   - [-] Chart
-  - [ ] Names for buttons - A / B ? 
+  - [-] Names for buttons - A / B ? 
+    - [-] Cat / Dog
 - [-] Style
   - [-] Mobile sizing
   - [-] Homepage
@@ -62,3 +62,7 @@
   - [ ] verify 
   - [ ] record in db
   - [ ] "Final" click ? 
+- [ ] Config based button names
+- [ ] User spawned contests
+- [ ] Chart 
+  - [ ] First Derivative / CoT

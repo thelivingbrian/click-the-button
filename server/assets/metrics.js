@@ -79,8 +79,8 @@ function createChart() {
     data: {
       labels: fullLabels,
       datasets: [
-        { label: 'Clicks A', data: fullClicksA, borderWidth: 1 },
-        { label: 'Clicks B',  data: fullClicksB,  borderWidth: 1 }
+        { label: '🐕 (Dog)', data: fullClicksA, borderWidth: 1 },
+        { label: '🐈 (Cat)',  data: fullClicksB,  borderWidth: 1 }
       ]
     },
     options: {

@@ -90,14 +90,13 @@ func (app *App) takePeriodicSnapshots() {
 		ticker := time.NewTicker(app.configuration.snapshotInterval) // Source from config
 		defer ticker.Stop()
 
-		var previousClickACount, previousClickBCount, previousViewCount int64
+		var previousClickACount, previousClickBCount int64
 		for range ticker.C {
 			currentClicksA := app.clicksA.Load()
 			currentClicksB := app.clicksB.Load()
 			currentViews := app.views.Load()
 			if currentClicksA == previousClickACount &&
-				currentClicksB == previousClickBCount &&
-				currentViews == previousViewCount {
+				currentClicksB == previousClickBCount {
 				continue
 			}
 			fmt.Println("inserting: ", currentClicksA, currentClicksB, currentViews)
@@ -105,7 +104,7 @@ func (app *App) takePeriodicSnapshots() {
 				log.Println("Error taking snapshot:", err)
 				continue
 			}
-			previousClickACount, previousClickBCount, previousViewCount = currentClicksA, currentClicksB, currentViews
+			previousClickACount, previousClickBCount = currentClicksA, currentClicksB
 		}
 	}()
 }
