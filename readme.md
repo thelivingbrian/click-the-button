@@ -1,6 +1,6 @@
 # Click the Button
 
-Click-the-Button tracks clicks of its eponymous button - while providing live updates!
+Click-the-Button tracks clicks of its eponymous button(s) - while providing live updates!
 
 
 ## Technology
