@@ -141,7 +141,12 @@ button:active{
   color:var(--color-accent);
   text-decoration:none;
 }
-#modal-content > a:hover{
+
+a {
+  color:var(--color-accent4);
+}
+
+a:hover{
   color:var(--color-accent2);
 }
 
