@@ -1,0 +1,55 @@
+{{define "page"}}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{.Title}} · Click the Button</title><link rel="stylesheet" href="/assets/station.css">
+<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.11/bundles/datastar.js"></script>
+</head><body data-signals='{"notice":"","closed":false}' {{if eq .Mode "board"}}data-on-load="@get('/live')"{{else if and (eq .Mode "detail") (eq .Poll.Status "live")}}data-on-load="@get('/live?poll={{.Poll.ID}}')"{{end}}>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><a class="brand" href="/"><span class="brand-mark">↗</span> click the button<span class="edition">a place to participate</span></a><nav aria-label="Main navigation"><a href="/" {{if eq .Mode "board"}}aria-current="page"{{end}}>The station</a><a href="/archive" {{if eq .Mode "archive"}}aria-current="page"{{end}}>Archive <span>↗</span></a></nav></header>
+<main id="main">
+{{if eq .Mode "board"}}
+<section class="hero"><div class="eyebrow"><span class="live-dot"></span> OPEN FOR SMALL MOMENTS</div><h1>A little click.<br>A shared <em>something.</em></h1><div class="hero-bottom"><p>Pick a side. Keep a spark alive. Leave your mark.<br>See what happens when we all show up.</p><span class="station-stamp">NO. 001<br><b>EVERYONE’S<br>IN THE MIX.</b></span></div></section>
+<div class="board-heading"><h2>On the board <span>↓</span></h2><span>Jump in. There’s no wrong place to start.</span></div>
+{{template "board-live" .}}
+<section class="identity"><div><div class="eyebrow">COME AS YOU ARE</div><h2>A stranger, or a familiar name.</h2><p>You’re {{if .Session.Handle}}here as <strong>{{.Session.Handle}}</strong>{{else}}a guest{{end}}. A handle is optional, unverified, and visible in recent activity.<br>It belongs to this browser. Full accounts are a future stop.</p></div><form method="post" action="/profile"><label for="handle">Your handle</label><div class="input-row"><input id="handle" name="handle" maxlength="24" pattern="[A-Za-z0-9 _\-]*" placeholder="e.g. nightowl" value="{{.Session.Handle}}"><button type="submit">Set handle ↗</button></div><small>Leave blank to go back to guest.</small></form></section>
+{{else if eq .Mode "detail"}}
+<a class="back" href="/">← Back to the station</a><section class="poll-heading"><div class="eyebrow">{{.Poll.KindLabel}} / {{.Poll.Status}}</div><h1>{{.Poll.Title}}</h1><p>{{.Poll.Subtitle}}</p><p class="rule">{{.Poll.Rule}}</p></section>
+<section class="play-area kind-{{.Poll.Kind}}">
+{{template "poll-live" .}}
+{{if eq .Poll.Status "live"}}<div class="choices {{if eq .Poll.Kind "heat"}}heat-input{{else if eq .Poll.Kind "scale"}}scale-input{{end}}" aria-label="Choices">
+{{range $i,$option := .Poll.Options}}<button class="choice" data-attr-disabled="$closed" data-on-click="@post('/poll/{{$.Poll.ID}}/click/{{$i}}?request=' + crypto.randomUUID())" aria-label="{{$option}}">{{if eq $.Poll.Kind "heat"}}<span aria-hidden="true">＋</span><small>{{$option}}</small>{{else if eq $.Poll.Kind "stars"}}<span class="star">★</span> {{$option}}{{else}}{{$option}} <span aria-hidden="true">↗</span>{{end}}</button>{{end}}
+</div><p class="cooldown">{{if eq .Poll.Kind "one"}}One ballot per browser. No changing your choice.{{else}}Repeat clicks welcome · short cooldowns keep it playable{{end}}</p><p class="notice" role="status" data-text="$notice"></p><noscript><p>Enable JavaScript to join in. Results are still readable.</p></noscript>
+{{else}}<div class="archive-actions"><a class="primary-link" href="/archive/{{.Poll.ID}}/export">Download the full result ↓</a><form method="post" action="/studio/{{.Poll.ID}}/rematch"><button>Start a rematch ↗</button></form></div>{{end}}
+</section><div class="detail-footer"><span>Started {{date .Poll.Created}}{{if .Poll.Parent}} · <a href="/archive/{{.Poll.Parent}}">Previous round</a>{{end}}</span><a href="/studio">Local studio →</a></div>
+{{else if eq .Mode "archive"}}
+<section class="hero small"><div class="eyebrow">SOME MOMENTS ARE WORTH KEEPING</div><h1>Over. <em>Not gone.</em></h1><p>Final scores, little histories, and a reason to go again.</p></section>
+<a class="legacy-card" href="/legacy/"><span class="eyebrow">THE ORIGINAL · PRESERVED</span><h2>Dogs vs. Cats <span>↗</span></h2><p>The first experiment, in its original colors. Frozen local rehearsal data.</p></a>
+<div class="archive-list">{{range .Archives}}<a href="/archive/{{.ID}}"><span>{{.KindLabel}}</span><h2>{{.Title}}</h2><span>{{.Total}} interactions · {{date .Closed}} ↗</span></a>{{else}}<p>New memories will land here. Close a round in the local studio to try archiving.</p>{{end}}</div>
+{{else if eq .Mode "studio"}}
+<section class="hero small"><div class="eyebrow">LOCAL PROTOTYPE CONTROLS</div><h1>Close a round.<br><em>Keep the moment.</em></h1><p>Archiving freezes results and saves their history together. Rematches start fresh.<br>These controls are for this local prototype; creator accounts are not implemented.</p></section>
+<div class="studio-list">{{range .Polls}}<article><div><span class="eyebrow">{{.KindLabel}} · LIVE</span><h2><a href="/poll/{{.ID}}">{{.Title}}</a></h2><p>{{.Total}} accepted interactions</p></div><form method="post" action="/studio/{{.ID}}/archive"><button>Close & archive →</button></form></article>{{end}}</div>
+<h2>Preserved rounds</h2><div class="studio-list">{{range .Archives}}<article><a href="/archive/{{.ID}}">{{.Title}} · {{.Total}} interactions</a><form method="post" action="/studio/{{.ID}}/rematch"><button>Start a rematch ↗</button></form></article>{{else}}<p>No archived prototype rounds yet.</p>{{end}}</div>
+{{end}}
+</main><footer><a href="/">↗ Click the Button</a><span>A small experiment in being here, together.</span><a href="/studio">Local studio</a><a href="/legacy/">The original ↗</a></footer>
+</body></html>{{end}}
+
+{{define "board-live"}}<div id="board-live"><div class="poll-grid">
+{{range .Polls}}{{$poll := .}}<a class="poll-card kind-{{.Kind}}" href="/poll/{{.ID}}"><div class="card-top"><span class="eyebrow">{{.KindLabel}}</span><span class="card-status"><i></i> LIVE</span></div><h3>{{.Title}}</h3><p>{{.Subtitle}}</p><div class="card-visual">
+{{if eq .Kind "pulse"}}<div class="pulse-orb"><span>{{number .EnergyTotal}}</span><small>ENERGY NOW</small></div>
+{{else if eq .Kind "tug"}}<div class="tug-labels"><span>← SLOW</span><span>ALL OUT →</span></div><div class="tug-track"><span style="left:{{.Balance}}%"></span></div>
+{{else if eq .Kind "stars"}}<div class="stars-visual">★★★★★</div><span class="average">{{.Average}} <small>/ 5</small></span>
+{{else if eq .Kind "scale"}}<div class="scale-visual">1 <span>▁ ▂ ▃ ▄ ▅ ▆ ▇ █</span> 10</div><span class="average">{{.Average}} <small>/ 10</small></span>
+{{else if eq .Kind "heat"}}<div class="heat-preview">{{range .Counts}}<span style="background:rgba(73, 118, 61, {{heat . $poll.Counts}});color:{{if gt . 0}}white{{else}}inherit{{end}}">{{if gt . 0}}{{.}}{{else}}·{{end}}</span>{{end}}</div>
+{{else}}<div class="mini-results">{{range $i,$option:=.Options}}<div><span>{{$option}}</span><b>{{index $poll.Counts $i}}</b></div>{{end}}</div>{{end}}
+</div><div class="card-bottom"><span>{{.Total}} {{if eq .Kind "one"}}ballots{{else}}interactions{{end}}{{if eq .Kind "pulse"}} · peak {{number .Peak}}{{end}}</span><b>Join in ↗</b></div></a>{{end}}
+</div><section class="activity-strip"><div><span class="live-dot"></span><h2>Just passing through</h2></div><div class="activity-items">{{range .Activity}}<p><b>{{if .Handle}}{{.Handle}}{{else}}Someone{{end}}</b> chose {{.Option}} <span>· {{.Title}}</span></p>{{else}}<p>It’s quiet for a moment. Your click can be the first.</p>{{end}}</div></section>
+{{if .Archives}}<section class="recent-archives"><h2>Recently wrapped up</h2>{{range .Archives}}<a href="/archive/{{.ID}}">{{.Title}} <span>{{.Total}} interactions ↗</span></a>{{end}}</section>{{end}}</div>{{end}}
+
+{{define "poll-live"}}<div id="poll-live">
+{{if eq .Poll.Status "archived"}}<div class="closed-banner">A moment, preserved. Closed {{date .Poll.Closed}}. <a href="/archive/{{.Poll.ID}}">View archive →</a></div>{{end}}
+{{if eq .Poll.Kind "pulse"}}<div class="pulse-result"><div class="pulse-orb"><span>{{number .Poll.EnergyTotal}}</span><small>{{if eq .Poll.Status "archived"}}FINAL ENERGY{{else}}ENERGY NOW{{end}}</small></div><div><span class="eyebrow">ALL-TIME PEAK</span><h2>{{number .Poll.Peak}}</h2><p>{{date .Poll.PeakAt}}</p><span>{{.Poll.Total}} sparks contributed</span></div></div>
+{{else if eq .Poll.Kind "tug"}}<div class="tug-labels"><span>← {{index .Poll.Options 0}}</span><span>{{index .Poll.Options 1}} →</span></div><div class="tug-track large"><span style="left:{{.Poll.Balance}}%"></span></div><div class="tug-labels"><b>{{index .Poll.Counts 0}} pulls</b><b>{{index .Poll.Counts 1}} pulls</b></div>
+{{else if eq .Poll.Kind "heat"}}<div class="heat-results" aria-label="Heat by cell">{{range $i,$count:=.Poll.Counts}}<span style="background:rgba(73, 118, 61, {{heat $count $.Poll.Counts}});color:{{if gt $count 0}}white{{else}}inherit{{end}}" aria-label="{{index $.Poll.Options $i}}: {{$count}} clicks">{{$count}}</span>{{end}}</div><p>More clicks, more shared marks. Numbers show accepted clicks in each square.</p>
+{{else}}{{if or (eq .Poll.Kind "stars") (eq .Poll.Kind "scale")}}<div class="rating-average"><strong>{{.Poll.Average}}</strong><span> / {{len .Poll.Options}}<br>weighted average · {{.Poll.Total}} ratings</span></div>{{end}}
+<div class="result-bars">{{range $i,$label:=.Poll.Options}}<div class="result-row"><span>{{$label}}</span><div class="bar-track"><span style="width:{{percent (index $.Poll.Counts $i) $.Poll.Total}}%"></span></div><b>{{index $.Poll.Counts $i}}</b></div>{{end}}</div>{{end}}
+<div class="result-meta"><span>{{.Poll.Total}} accepted {{if eq .Poll.Kind "one"}}ballots{{else}}interactions{{end}}</span><span>{{if eq .Poll.Status "live"}}Shared results · updating live{{else}}Frozen result · no live connection{{end}}</span></div>
+</div>{{end}}

@@ -4,4 +4,6 @@
 *.db-shm
 *.db-wal
 /data/
+/server/data/
+/server/server
 .env

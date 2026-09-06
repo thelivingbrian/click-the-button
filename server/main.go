@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http" //_ "net/http/pprof"
+	"os"
 	"sync/atomic"
 	"text/template"
 )
@@ -16,7 +17,7 @@ const (
 
 var (
 	greeting = "Choose your favorite!"
-	tmpl     = template.Must(template.ParseGlob("templates/*.tmpl.html")) // embed?
+	tmpl     = template.Must(template.ParseFiles("templates/home.tmpl.html"))
 )
 
 type App struct {
@@ -30,36 +31,20 @@ type App struct {
 
 func main() {
 	config := getConfiguration()
-	db := initDB()
-
-	app := createApp(db, config)
-	app.takePeriodicSnapshots()
-	app.sendPeriodicBroadcasts()
-
-	launchPprof(config) // Need seperate mux to ensure pprof is truly disabled
-
-	// Site
-	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
-	http.HandleFunc("/{$}", app.homeHandler)
-
-	// Clicks
-	http.HandleFunc("/click/", app.clickHandler)
-
-	// Updates
-	http.HandleFunc("/stream", app.streamHandler)
-	http.HandleFunc("/metrics/feed", app.metricsFeed)
-	http.HandleFunc("/metrics/history", app.metricsHandler)
-
-	// Modals
-	http.HandleFunc("/about", app.aboutHandler)
-	http.HandleFunc("/chart", app.chartHandler)
-	http.HandleFunc("/modal/toggle", app.modalToggle)
-
-	// Unused server side graph
-	http.HandleFunc("/metrics.svg", db.metricsAsSvg)
-
-	log.Println("listening on :" + config.port)
-	log.Fatal(http.ListenAndServe(":"+config.port, nil))
+	if err := os.MkdirAll("data", 0o755); err != nil {
+		log.Fatal(err)
+	}
+	station, err := openStation("data/station.db", "data/legacy")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer station.db.Close()
+	host := os.Getenv("HOST")
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	log.Println("station listening on http://" + host + ":" + config.port)
+	log.Fatal(http.ListenAndServe(host+":"+config.port, station.routes()))
 }
 
 func createApp(db DB, config *Configuration) *App {

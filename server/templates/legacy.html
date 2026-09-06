@@ -1,0 +1,13 @@
+{{define "legacy"}}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dogs vs. Cats · The original experiment</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/assets/style.css">
+<style>html,body{width:100%}.main-content{box-sizing:border-box}section{box-sizing:border-box;overflow-wrap:anywhere}#mChart{max-width:100%}button:disabled{cursor:default}</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script><script defer src="/assets/legacy.js"></script>
+</head><body>
+<div class="page-header"><h1>Click the button</h1><p>Dogs vs. Cats · The original experiment</p><p>Retired · preserved just as it was</p></div>
+<div class="main-content"><div class="buttons">
+<div class="button-group"><button disabled>🐕 (Dog)</button><br>Total Clicks: <span>{{.Final.ClicksA}}</span></div>
+<div class="button-group"><button disabled>🐈 (Cat)</button><br>Total Clicks: <span>{{.Final.ClicksB}}</span></div></div>
+<div class="links"><a href="#history">Show Graph</a><br><a href="#about">About</a><br><a href="/">Visit the new station →</a></div>
+<section id="history" style="width:min(850px,90vw)"><h2>Metrics</h2><div class="range-buttons"><button data-range="5m">5m</button><button data-range="1h">1h</button><button data-range="1d">1d</button><button data-range="2d">2d</button><button data-range="1w">1w</button><button data-range="all">All-Time</button></div><canvas id="mChart" aria-label="Frozen Dog and Cat click history" role="img"></canvas><p id="chart-status">Loading preserved chart…</p><a href="/legacy/history.json">Download sampled history</a></section>
+<section id="about" style="max-width:650px;padding:1rem"><h2>About this preserved page</h2><p>Click the Button began as an experiment in real-time, shared interaction. Every tap was streamed live to everyone else. Repeat clicks were part of the fun.</p><p>{{.Provenance}}</p><p>{{.Cutoff}} {{.Snapshots}} snapshots and {{.Final.Views}} page views preserved. These totals count clicks, not unique people.</p><p>Archived {{.ArchivedAt}}. Chart ranges end at the final snapshot.</p><a href="/legacy/manifest.json">Archive provenance and checksums</a></section></div></body></html>{{end}}
