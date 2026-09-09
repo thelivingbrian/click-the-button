@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Install a local bundle or the latest production release. Run as the app user."""
 import argparse
+from contextlib import closing
 import datetime
 import fcntl
 import hashlib
@@ -33,11 +34,18 @@ def backup():
     destination.mkdir(parents=True)
     database = ROOT / 'shared/data/station.db'
     if database.exists():
-        with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as source:
-            with sqlite3.connect(destination / 'station.db') as copy:
+        with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as source:
+            with closing(sqlite3.connect(destination / 'station.db')) as copy:
                 source.backup(copy)
                 if copy.execute('PRAGMA integrity_check').fetchone() != ('ok',):
                     raise RuntimeError('Backup integrity check failed')
+                # Produce a standalone artifact before hashing, even when the live DB uses WAL.
+                if copy.execute('PRAGMA journal_mode=DELETE').fetchone() != ('delete',):
+                    raise RuntimeError('Could not finalize standalone backup')
+        # Some SQLite versions leave an orphan SHM file after switching out of WAL.
+        # These belong only to our closed, newly created DELETE-mode copy.
+        for suffix in ('-wal', '-shm'):
+            (destination / ('station.db' + suffix)).unlink(missing_ok=True)
     shutil.copytree(ROOT / 'shared/data/legacy', destination / 'legacy')
     current = ROOT / 'current'
     (destination / 'release.json').write_text(json.dumps({'release': str(current.resolve()) if current.exists() else None, 'created': stamp}) + '\n')

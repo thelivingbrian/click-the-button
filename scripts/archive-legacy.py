@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Freeze a stopped legacy database at its persisted-snapshot cutoff."""
 import argparse
+from contextlib import closing
 import datetime
 import hashlib
 import json
@@ -40,11 +41,14 @@ def main():
     assert SOURCE.exists(), 'No legacy database exists'
     staging = TARGET.with_name('legacy-staging')
     staging.mkdir()  # Refuse to overwrite an incomplete previous attempt.
-    with sqlite3.connect(SOURCE.as_uri() + '?mode=ro', uri=True) as source:
-        with sqlite3.connect(staging / 'clicks.db') as backup:
+    with closing(sqlite3.connect(SOURCE.as_uri() + '?mode=ro', uri=True)) as source:
+        with closing(sqlite3.connect(staging / 'clicks.db')) as backup:
             source.backup(backup)
             assert backup.execute('PRAGMA integrity_check').fetchone() == ('ok',)
             rows = backup.execute('SELECT ts, clicksA, clicksB, views FROM counter_snapshots ORDER BY ts').fetchall()
+            assert backup.execute('PRAGMA journal_mode=DELETE').fetchone() == ('delete',)
+    for suffix in ('-wal', '-shm'):
+        (staging / ('clicks.db' + suffix)).unlink(missing_ok=True)
     assert rows, 'No persisted snapshots to archive'
     history = [dict(zip(('ts', 'clicksA', 'clicksB', 'views'), row)) for row in rows]
     (staging / 'history.json').write_text(json.dumps(history, indent=2) + '\n')

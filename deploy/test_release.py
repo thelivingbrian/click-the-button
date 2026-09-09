@@ -54,7 +54,10 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual(restored.execute('SELECT value FROM votes').fetchall(), [(42,)])
                 self.assertEqual(restored.execute('PRAGMA integrity_check').fetchone(), ('ok',))
         for name, sha in json.loads((snapshot / 'checksums.json').read_text()).items():
+            self.assertFalse(name.endswith(('-wal', '-shm')))
             self.assertEqual(hashlib.sha256((snapshot / name).read_bytes()).hexdigest(), sha)
+        with sqlite3.connect(snapshot / 'station.db') as restored:
+            self.assertEqual(restored.execute('PRAGMA journal_mode').fetchone(), ('delete',))
 
     def test_failed_health_rolls_back_binary_without_replacing_database(self):
         old, new = 'a' * 40, 'b' * 40
