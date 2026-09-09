@@ -25,6 +25,14 @@ func testStation(t *testing.T) *Station {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.db.Close() })
+	for _, kind := range []string{"one", "tug", "pulse", "contest", "scale", "stars", "heat"} {
+		p := preset(kind)
+		p.ID = kind
+		b, _ := json.Marshal(p)
+		if _, err := s.db.Exec("INSERT INTO polls(id,status,state) VALUES(?,'live',?)", kind, b); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return s
 }
 func testGuest(t *testing.T, s *Station) Session {
@@ -189,6 +197,12 @@ func TestRestartKeepsResultsAndArchives(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "station.db")
 	s, err := openStation(path, t.TempDir())
 	if err != nil {
+		t.Fatal(err)
+	}
+	p0 := preset("stars")
+	p0.ID = "stars"
+	b0, _ := json.Marshal(p0)
+	if _, err = s.db.Exec("INSERT INTO polls(id,status,state) VALUES('stars','live',?)", b0); err != nil {
 		t.Fatal(err)
 	}
 	v := testGuest(t, s)

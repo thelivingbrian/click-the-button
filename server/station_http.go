@@ -15,8 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	datastar "github.com/starfederation/datastar/sdk/go"
 )
 
 var stationTemplates = template.Must(template.New("station").Funcs(template.FuncMap{
@@ -52,6 +50,10 @@ type Page struct {
 	Archives             []Poll
 	Activity             []Activity
 	Session              Session
+	Next                 Poll
+	Formats              []Poll
+	Discussion           []Discussion
+	Voted, NextVoted     bool
 }
 
 func (s *Station) routes() http.Handler {
@@ -62,12 +64,16 @@ func (s *Station) routes() http.Handler {
 	mux.HandleFunc("GET /live", s.live)
 	mux.HandleFunc("POST /poll/{id}/click/{choice}", s.vote)
 	mux.HandleFunc("POST /profile", s.profile)
+	mux.HandleFunc("GET /create", s.studio)
+	mux.HandleFunc("POST /events", s.submitEvent)
+	mux.HandleFunc("GET /account", s.account)
+	mux.HandleFunc("POST /poll/{id}/discussion", s.postDiscussion)
 	mux.HandleFunc("GET /archive", s.archiveIndex)
 	mux.HandleFunc("GET /archive/{id}", s.detail)
 	mux.HandleFunc("GET /archive/{id}/export", s.export)
 	mux.HandleFunc("GET /studio", s.studio)
-	mux.HandleFunc("POST /studio/{id}/archive", s.closePoll)
-	mux.HandleFunc("POST /studio/{id}/rematch", s.startRematch)
+	mux.HandleFunc("POST /studio/{id}/archive", s.restricted)
+	mux.HandleFunc("POST /studio/{id}/rematch", s.restricted)
 	mux.HandleFunc("GET /legacy/{$}", s.legacy)
 	mux.HandleFunc("GET /legacy/history.json", s.legacyHistory)
 	mux.HandleFunc("GET /legacy/manifest.json", func(w http.ResponseWriter, r *http.Request) {
@@ -128,29 +134,41 @@ func renderPage(w http.ResponseWriter, name string, data any) {
 	_, _ = w.Write(buf.Bytes())
 }
 func (s *Station) board(session Session) (Page, error) {
-	d := Page{Title: "The station", Mode: "board", Session: session}
-	var err error
-	d.Polls, err = s.list("live")
+	d := Page{Title: "Current event", Mode: "board", Session: session}
+	if err := s.advance(time.Now().UnixMilli()); err != nil {
+		return d, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var mainID, nextID string
+	err := s.db.QueryRow("SELECT main,next FROM event_schedule WHERE id=1").Scan(&mainID, &nextID)
 	if err != nil {
 		return d, err
 	}
-	d.Archives, err = s.list("archived")
+	if d.Poll, err = s.poll(mainID); err != nil {
+		return d, err
+	}
+	d.Poll.decay(time.Now().UnixMilli())
+	if d.Next, err = s.poll(nextID); err != nil {
+		return d, err
+	}
+	polls, err := s.list("live")
 	if err != nil {
 		return d, err
 	}
-	rows, err := s.db.Query("SELECT title,handle,option,ts FROM activity WHERE ts>? ORDER BY id DESC LIMIT 5", time.Now().Add(-24*time.Hour).UnixMilli())
-	if err != nil {
-		return d, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var a Activity
-		if err = rows.Scan(&a.Title, &a.Handle, &a.Option, &a.At); err != nil {
-			return d, err
+	for _, p := range polls {
+		if p.Scope == "community" {
+			d.Polls = append(d.Polls, p)
 		}
-		d.Activity = append(d.Activity, a)
 	}
-	return d, rows.Err()
+	if d.Voted, err = s.hasVoted(d.Poll, session); err != nil {
+		return d, err
+	}
+	if d.NextVoted, err = s.hasVoted(d.Next, session); err != nil {
+		return d, err
+	}
+	d.Discussion, err = s.comments(mainID)
+	return d, err
 }
 func (s *Station) home(w http.ResponseWriter, r *http.Request) {
 	v, err := s.getSession(w, r, true)
@@ -166,6 +184,10 @@ func (s *Station) home(w http.ResponseWriter, r *http.Request) {
 	renderPage(w, "page", d)
 }
 func (s *Station) detail(w http.ResponseWriter, r *http.Request) {
+	if err := s.advance(time.Now().UnixMilli()); err != nil {
+		http.Error(w, "Could not load event", 500)
+		return
+	}
 	p, err := s.poll(r.PathValue("id"))
 	if err != nil {
 		http.NotFound(w, r)
@@ -181,7 +203,17 @@ func (s *Station) detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.decay(time.Now().UnixMilli())
-	renderPage(w, "page", Page{Title: p.Title, Mode: "detail", Poll: p, Session: v})
+	comments, err := s.comments(p.ID)
+	if err != nil {
+		http.Error(w, "Could not load discussion", 500)
+		return
+	}
+	voted, err := s.hasVoted(p, v)
+	if err != nil {
+		http.Error(w, "Could not load ballot", 500)
+		return
+	}
+	renderPage(w, "page", Page{Title: p.Title, Mode: "detail", Poll: p, Session: v, Discussion: comments, Voted: voted})
 }
 func (s *Station) vote(w http.ResponseWriter, r *http.Request) {
 	session, err := s.getSession(w, r, false)
@@ -195,69 +227,80 @@ func (s *Station) vote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	requestID := r.URL.Query().Get("request")
+	if requestID == "" {
+		requestID = randomID()
+	}
 	if len(requestID) < 8 || len(requestID) > 100 {
-		http.Error(w, "Missing interaction identifier", 400)
+		http.Error(w, "Invalid interaction identifier", 400)
 		return
 	}
 	err = s.click(r.PathValue("id"), session, choice, requestID, time.Now().UnixMilli())
-	message := "Click received. You’re part of it."
-	if err != nil {
-		switch {
-		case errors.Is(err, errClosed), errors.Is(err, errVoted), errors.Is(err, errCooldown):
-			message = err.Error()
-		default:
-			log.Println(err)
-			http.Error(w, "Could not accept click", 400)
-			return
-		}
-	}
-	// Datastar merges an accessible status message; the single page stream owns results.
-	sse := datastar.NewSSE(w, r)
-	_ = sse.MarshalAndMergeSignals(map[string]any{"notice": message})
+	s.actionResponse(w, r, err, "Vote recorded.")
 }
-func (s *Station) live(w http.ResponseWriter, r *http.Request) {
-	// Read-only streaming: one bounded stream per page, no per-card connections.
-	sse := datastar.NewSSE(w, r)
-	w.Header().Set("X-Accel-Buffering", "no")
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	previous := ""
-	for {
-		var data Page
-		var err error
-		name := "board-live"
-		if id := r.URL.Query().Get("poll"); id != "" {
-			data.Poll, err = s.poll(id)
-			data.Poll.decay(time.Now().UnixMilli())
-			name = "poll-live"
-		} else {
-			data, err = s.board(Session{})
+
+func (s *Station) actionResponse(w http.ResponseWriter, r *http.Request, err error, message string) {
+	code := http.StatusOK
+	if err != nil {
+		message, code = err.Error(), http.StatusBadRequest
+		if errors.Is(err, errSignIn) {
+			code = http.StatusForbidden
 		}
-		if err != nil {
-			return
+		if errors.Is(err, errClosed) || errors.Is(err, errVoted) {
+			code = http.StatusConflict
 		}
-		var buf bytes.Buffer
-		if err = stationTemplates.ExecuteTemplate(&buf, name, data); err != nil {
-			log.Println(err)
-			return
-		}
-		if buf.String() != previous {
-			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(5 * time.Second))
-			if err = sse.MergeFragments(buf.String()); err != nil {
-				return
-			}
-			previous = buf.String()
-		}
-		if data.Poll.Status == "archived" {
-			_ = sse.MarshalAndMergeSignals(map[string]any{"closed": true, "notice": "This round has closed. Its final result is preserved."})
-			return
-		}
-		select {
-		case <-r.Context().Done():
-			return
-		case <-ticker.C:
+		if errors.Is(err, errCooldown) {
+			code = http.StatusTooManyRequests
 		}
 	}
+	if r.Header.Get("Accept") == "application/json" {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(code)
+		_ = json.NewEncoder(w).Encode(map[string]string{"message": message})
+		return
+	}
+	if err != nil {
+		http.Error(w, message, code)
+		return
+	}
+	target := "/poll/" + r.PathValue("id")
+	if r.FormValue("return") == "home" {
+		target = "/"
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+func (s *Station) live(w http.ResponseWriter, r *http.Request) {
+	v, err := s.getSession(w, r, false)
+	if err != nil {
+		http.Error(w, "Open an event to begin", 403)
+		return
+	}
+	var d Page
+	name := "board-live"
+	if id := r.URL.Query().Get("poll"); id != "" {
+		if err = s.advance(time.Now().UnixMilli()); err != nil {
+			http.Error(w, "Could not refresh", 500)
+			return
+		}
+		d.Poll, err = s.poll(id)
+		if err == nil {
+			d.Discussion, err = s.comments(id)
+		}
+		d.Poll.decay(time.Now().UnixMilli())
+		d.Session, d.Mode = v, "detail"
+		if err == nil {
+			d.Voted, err = s.hasVoted(d.Poll, v)
+		}
+		name = "event-live"
+	} else {
+		d, err = s.board(v)
+	}
+	if err != nil {
+		http.Error(w, "Could not refresh event", 500)
+		return
+	}
+	renderPage(w, name, d)
 }
 func (s *Station) profile(w http.ResponseWriter, r *http.Request) {
 	v, err := s.getSession(w, r, false)
@@ -286,7 +329,13 @@ func (s *Station) archiveIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	renderPage(w, "page", Page{Title: "The archive", Mode: "archive", Archives: polls})
+	var visible []Poll
+	for _, p := range polls {
+		if p.Scope != "" {
+			visible = append(visible, p)
+		}
+	}
+	renderPage(w, "page", Page{Title: "Archive", Mode: "archive", Archives: visible})
 }
 func (s *Station) studio(w http.ResponseWriter, r *http.Request) {
 	v, err := s.getSession(w, r, true)
@@ -299,32 +348,10 @@ func (s *Station) studio(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	d.Mode = "studio"
-	d.Title = "Local studio"
+	d.Mode = "create"
+	d.Title = "Create an event"
+	d.Formats = formats()
 	renderPage(w, "page", d)
-}
-func (s *Station) closePoll(w http.ResponseWriter, r *http.Request) {
-	if _, err := s.getSession(w, r, false); err != nil {
-		http.Error(w, err.Error(), 403)
-		return
-	}
-	if err := s.archive(r.PathValue("id"), time.Now().UnixMilli()); err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
-	http.Redirect(w, r, "/archive/"+r.PathValue("id"), http.StatusSeeOther)
-}
-func (s *Station) startRematch(w http.ResponseWriter, r *http.Request) {
-	if _, err := s.getSession(w, r, false); err != nil {
-		http.Error(w, err.Error(), 403)
-		return
-	}
-	id, err := s.rematch(r.PathValue("id"))
-	if err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
-	http.Redirect(w, r, "/poll/"+id, http.StatusSeeOther)
 }
 func (s *Station) export(w http.ResponseWriter, r *http.Request) {
 	var payload []byte
@@ -364,4 +391,58 @@ func (s *Station) legacy(w http.ResponseWriter, r *http.Request) {
 func (s *Station) legacyHistory(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	http.ServeFile(w, r, filepath.Join(s.legacyDir, "history.json"))
+}
+
+func (s *Station) restricted(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "Manual event controls are unavailable. Main events close automatically each week.", http.StatusForbidden)
+}
+func (s *Station) account(w http.ResponseWriter, r *http.Request) {
+	renderPage(w, "page", Page{Title: "Sign in", Mode: "account"})
+}
+func (s *Station) submitEvent(w http.ResponseWriter, r *http.Request) {
+	v, err := s.getSession(w, r, false)
+	if err != nil || v.AccountID == "" {
+		http.Error(w, errSignIn.Error(), 403)
+		return
+	}
+	if err = r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form", 400)
+		return
+	}
+	id, err := s.createEvent(v, r.FormValue("kind"), r.FormValue("title"), r.FormValue("options"), time.Now().UnixMilli())
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	http.Redirect(w, r, "/poll/"+id, http.StatusSeeOther)
+}
+func (s *Station) postDiscussion(w http.ResponseWriter, r *http.Request) {
+	v, err := s.getSession(w, r, false)
+	if err != nil {
+		http.Error(w, "Open an event to join the discussion", 403)
+		return
+	}
+	if err = r.ParseForm(); err != nil {
+		http.Error(w, "Invalid comment", 400)
+		return
+	}
+	err = s.discuss(r.PathValue("id"), v, r.FormValue("body"), time.Now().UnixMilli())
+	s.actionResponse(w, r, err, "Comment posted.")
+}
+
+func (m LegacyManifest) Total() int64        { return m.Final.ClicksA + m.Final.ClicksB }
+func (m LegacyManifest) CutoffMillis() int64 { return m.CutoffUnix * 1000 }
+
+func (s *Station) hasVoted(p Poll, v Session) (bool, error) {
+	if p.Kind != "one" {
+		return false, nil
+	}
+	var count int
+	var err error
+	if p.Scope == "selection" {
+		err = s.db.QueryRow("SELECT count(*) FROM next_ballots WHERE poll=? AND account=?", p.ID, v.AccountID).Scan(&count)
+	} else {
+		err = s.db.QueryRow("SELECT count(*) FROM ballots WHERE poll=? AND session=?", p.ID, v.ID).Scan(&count)
+	}
+	return count > 0, err
 }

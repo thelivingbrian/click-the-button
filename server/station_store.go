@@ -14,26 +14,30 @@ import (
 	"time"
 )
 
-var errClosed = errors.New("This poll is archived. Start a rematch to keep playing.")
-var errVoted = errors.New("This browser has already voted in this poll.")
-var errCooldown = errors.New("A little breather. Try again in a second.")
+var errClosed = errors.New("This event has closed.")
+var errVoted = errors.New("You have already voted in this event.")
+var errCooldown = errors.New("Please wait a second before trying again.")
 
 type Poll struct {
-	ID       string    `json:"id"`
-	Kind     string    `json:"kind"`
-	Title    string    `json:"title"`
-	Subtitle string    `json:"subtitle"`
-	Options  []string  `json:"options"`
-	Counts   []int64   `json:"counts"`
-	Energy   []float64 `json:"energy"`
-	Peak     float64   `json:"peak"`
-	PeakAt   int64     `json:"peakAt,omitempty"`
-	Updated  int64     `json:"updated"`
-	Created  int64     `json:"created"`
-	Closed   int64     `json:"closed,omitempty"`
-	Status   string    `json:"status"`
-	Version  int64     `json:"version"`
-	Parent   string    `json:"parent,omitempty"`
+	Scope      string    `json:"scope,omitempty"`
+	Creator    string    `json:"creator,omitempty"`
+	Ends       int64     `json:"ends,omitempty"`
+	Candidates []Poll    `json:"candidates,omitempty"`
+	ID         string    `json:"id"`
+	Kind       string    `json:"kind"`
+	Title      string    `json:"title"`
+	Subtitle   string    `json:"subtitle"`
+	Options    []string  `json:"options"`
+	Counts     []int64   `json:"counts"`
+	Energy     []float64 `json:"energy"`
+	Peak       float64   `json:"peak"`
+	PeakAt     int64     `json:"peakAt,omitempty"`
+	Updated    int64     `json:"updated"`
+	Created    int64     `json:"created"`
+	Closed     int64     `json:"closed,omitempty"`
+	Status     string    `json:"status"`
+	Version    int64     `json:"version"`
+	Parent     string    `json:"parent,omitempty"`
 }
 
 func (p Poll) Total() int64 {
@@ -67,7 +71,7 @@ func (p Poll) Balance() float64 {
 	return 100 * float64(p.Counts[1]) / float64(p.Total())
 }
 func (p Poll) KindLabel() string {
-	return map[string]string{"contest": "Click contest", "pulse": "Pulse", "tug": "Tug of war", "scale": "1–10 scale", "stars": "Star rating", "one": "One vote", "heat": "Heat map"}[p.Kind]
+	return map[string]string{"contest": "Click contest", "pulse": "Pulse", "tug": "Tug of war", "scale": "1–10 scale", "stars": "Star rating", "one": "Poll", "heat": "Heat map"}[p.Kind]
 }
 func (p Poll) Rule() string {
 	return map[string]string{
@@ -75,7 +79,7 @@ func (p Poll) Rule() string {
 		"tug":   "Pull left or right. Every click shifts the balance of all pulls.",
 		"scale": "Choose 1–10. Repeat ratings welcome; the average includes every click.",
 		"stars": "Give 1–5 stars. Repeat ratings welcome; every rating counts.",
-		"one":   "One choice per browser. Clearing cookies allows another vote.",
+		"one":   "One vote per browser.",
 		"heat":  "Choose a square to add heat. Repeat clicks welcome; heat is cumulative."}[p.Kind]
 }
 func (p *Poll) decay(now int64) {
@@ -89,7 +93,7 @@ func (p *Poll) decay(now int64) {
 	p.Updated = now
 }
 
-type Session struct{ ID, Handle string }
+type Session struct{ ID, Handle, AccountID string }
 type Activity struct {
 	Title, Handle, Option string
 	At                    int64
@@ -131,14 +135,9 @@ func openStation(path, legacy string) (*Station, error) {
 		db.Close()
 		return nil, err
 	}
-	for _, kind := range []string{"tug", "pulse", "contest", "scale", "stars", "heat", "one"} {
-		p := preset(kind)
-		p.ID = kind
-		body, _ := json.Marshal(p)
-		if _, err = db.Exec("INSERT OR IGNORE INTO polls(id,status,state) VALUES(?,'live',?)", p.ID, body); err != nil {
-			db.Close()
-			return nil, err
-		}
+	if err = s.initializeEvents(time.Now().UnixMilli()); err != nil {
+		db.Close()
+		return nil, err
 	}
 	return s, nil
 }
@@ -195,7 +194,11 @@ func (s *Station) poll(id string) (Poll, error) {
 	return p, err
 }
 func (s *Station) list(status string) ([]Poll, error) {
-	rows, err := s.db.Query("SELECT state FROM polls WHERE status=? ORDER BY rowid LIMIT 100", status)
+	order := "ASC"
+	if status == "archived" {
+		order = "DESC"
+	}
+	rows, err := s.db.Query("SELECT state FROM polls WHERE status=? ORDER BY rowid "+order+" LIMIT 100", status)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +220,7 @@ func (s *Station) list(status string) ([]Poll, error) {
 }
 func (s *Station) session(id string) (Session, error) {
 	var v Session
-	err := s.db.QueryRow("SELECT id,handle FROM sessions WHERE id=?", id).Scan(&v.ID, &v.Handle)
+	err := s.db.QueryRow("SELECT s.id,s.handle,COALESCE(a.account,'') FROM sessions s LEFT JOIN account_sessions a ON a.session=s.id WHERE s.id=?", id).Scan(&v.ID, &v.Handle, &v.AccountID)
 	return v, err
 }
 func (s *Station) newSession() (Session, error) {
@@ -237,6 +240,9 @@ func (s *Station) click(id string, session Session, choice int, requestID string
 		return err
 	}
 	defer tx.Rollback()
+	if err = s.rotateTx(tx, now); err != nil {
+		return err
+	}
 	var b []byte
 	if err = tx.QueryRow("SELECT state FROM polls WHERE id=?", id).Scan(&b); err != nil {
 		return err
@@ -245,7 +251,7 @@ func (s *Station) click(id string, session Session, choice int, requestID string
 	if err = json.Unmarshal(b, &p); err != nil {
 		return err
 	}
-	if p.Status != "live" {
+	if p.Status != "live" || (p.Ends > 0 && now >= p.Ends) {
 		return errClosed
 	}
 	if choice < 0 || choice >= len(p.Options) {
@@ -257,6 +263,22 @@ func (s *Station) click(id string, session Session, choice int, requestID string
 	}
 	if exists > 0 {
 		return nil
+	}
+	if p.Scope == "selection" {
+		var account string
+		if err = tx.QueryRow("SELECT account FROM account_sessions WHERE session=?", session.ID).Scan(&account); err != nil {
+			return errSignIn
+		}
+		var exists int
+		if err = tx.QueryRow("SELECT count(*) FROM next_ballots WHERE poll=? AND account=?", id, account).Scan(&exists); err != nil {
+			return err
+		}
+		if exists > 0 {
+			return errVoted
+		}
+		if _, err = tx.Exec("INSERT INTO next_ballots(poll,account) VALUES(?,?)", id, account); err != nil {
+			return err
+		}
 	}
 	var tokens float64
 	var updated int64
@@ -324,6 +346,14 @@ func (s *Station) archive(id string, now int64) error {
 		return err
 	}
 	defer tx.Rollback()
+	if err = archiveTx(tx, id, now); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func archiveTx(tx *sql.Tx, id string, now int64) error {
+	var err error
 	var b []byte
 	if err = tx.QueryRow("SELECT state FROM polls WHERE id=?", id).Scan(&b); err != nil {
 		return err
@@ -339,7 +369,7 @@ func (s *Station) archive(id string, now int64) error {
 	p.Status = "archived"
 	p.Closed = now
 	p.Version++
-	a := Archive{Format: 1, Poll: p, Provenance: "Local prototype activity. Counts represent accepted interactions under the displayed rules."}
+	a := Archive{Format: 1, Poll: p, Provenance: "Counts represent accepted interactions under the displayed rules. Discussion is not archived."}
 	rows, err := tx.Query("SELECT state FROM history WHERE poll=? ORDER BY version", id)
 	if err != nil {
 		return err
@@ -377,7 +407,8 @@ func (s *Station) archive(id string, now int64) error {
 	if _, err = tx.Exec("UPDATE polls SET status='archived',state=? WHERE id=?", b, id); err != nil {
 		return err
 	}
-	return tx.Commit()
+	_, err = tx.Exec("DELETE FROM discussion WHERE poll=?", id)
+	return err
 }
 
 func (s *Station) rematch(id string) (string, error) {

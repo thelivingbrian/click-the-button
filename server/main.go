@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync/atomic"
 	"text/template"
+	"time"
 )
 
 const (
@@ -39,6 +40,15 @@ func main() {
 		log.Fatal(err)
 	}
 	defer station.db.Close()
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for now := range ticker.C {
+			if err := station.advance(now.UnixMilli()); err != nil {
+				log.Println("event rotation:", err)
+			}
+		}
+	}()
 	host := os.Getenv("HOST")
 	if host == "" {
 		host = "127.0.0.1"
