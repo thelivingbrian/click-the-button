@@ -148,8 +148,8 @@ an operational retention policy when choosing how long old copies should remain.
 ## Routes and archives
 
 - `/`: current event, discussion, next-event ballot, and community events.
-- `/create`: Poll, click contest, tug of war, pulse, 1–10 scale, star rating, and
-  heat map formats, plus the community submission form.
+- `/create`: Poll, click contest, tug of war, pulse, 1–10 scale, and star rating
+  formats, plus the community submission form.
 - `/poll/{id}`: an individual event and its current or frozen results.
 - `/archive`: closed event results.
 - `/archive/{id}/export`: immutable JSON with a SHA-256 ETag.

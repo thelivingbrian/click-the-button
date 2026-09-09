@@ -185,7 +185,7 @@ func TestCommunityFormatsValidationAndNomination(t *testing.T) {
 	if err = s.click(id, testGuest(t, s), 0, "guest-community", now); err != nil {
 		t.Fatal(err)
 	}
-	for _, tc := range []struct{ kind, title, options string }{{"unknown", "Invalid event type", "Yes\nNo"}, {"one", "short", "Yes\nNo"}, {"one", "Duplicate options", "Yes\nyes"}, {"tug", "Needs two options", "A\nB\nC"}, {"pulse", "Needs one button", "A\nB"}} {
+	for _, tc := range []struct{ kind, title, options string }{{"unknown", "Invalid event type", "Yes\nNo"}, {"heat", "Heat map is not ready for release", ""}, {"one", "short", "Yes\nNo"}, {"one", "Duplicate options", "Yes\nyes"}, {"tug", "Needs two options", "A\nB\nC"}, {"pulse", "Needs one button", "A\nB"}} {
 		if _, err = s.createEvent(member, tc.kind, tc.title, tc.options, now); err == nil {
 			t.Fatal("invalid event accepted", tc)
 		}
@@ -413,8 +413,8 @@ func TestCreateAndAccountPagesExposeFormatsWithoutFakeSignIn(t *testing.T) {
 		if rr.Code != 200 {
 			t.Fatal(path, rr.Code, rr.Body.String())
 		}
-		if path == "/create" && strings.Count(rr.Body.String(), "class=\"format-card\"") != 7 {
-			t.Fatal("missing formats")
+		if path == "/create" && (strings.Count(rr.Body.String(), "class=\"format-card\"") != 6 || strings.Contains(rr.Body.String(), "Heat map")) {
+			t.Fatal("unexpected creation formats")
 		}
 	}
 	// Guest comments also work as native forms.

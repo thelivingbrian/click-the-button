@@ -23,7 +23,7 @@ type Discussion struct {
 // Formats describe abilities, not seeded community activity.
 func formats() []Poll {
 	var result []Poll
-	for _, kind := range []string{"one", "contest", "tug", "pulse", "scale", "stars", "heat"} {
+	for _, kind := range []string{"one", "contest", "tug", "pulse", "scale", "stars"} {
 		p := preset(kind)
 		p.Title = p.KindLabel()
 		p.Subtitle = p.Rule()

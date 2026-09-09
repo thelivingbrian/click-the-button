@@ -68,7 +68,7 @@
   function configureFormat() {
     const kind = document.querySelector('input[name="kind"]:checked')?.value;
     if (!kind) return;
-    const fixed = ['scale', 'stars', 'heat'].includes(kind);
+    const fixed = ['scale', 'stars'].includes(kind);
     document.getElementById('custom-options').hidden = fixed;
     document.getElementById('fixed-options').hidden = !fixed;
     const options = document.getElementById('options');
