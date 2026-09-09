@@ -179,13 +179,14 @@ legacy process. Keep the original database and an off-host copy of the archive.
 
 ## Production releases
 
-In GitHub **Actions → Release production → Run workflow**, select **main**.
+In GitHub **Actions → Release production → Run workflow**, select an approved
+branch: `main` or a `prototype/*` branch.
 The workflow tests the selected commit, builds a Linux amd64 binary, and publishes
 a `production-*` release with the commit ID and SHA-256 checksum. The droplet
 checks GitHub every two minutes, creates a verified SQLite backup, switches the
 release directory, restarts the service, and checks the running revision and
 legacy archive. Actions succeeds only after the public `/healthz` reports that
-commit. Source changes must be merged into `main` before release.
+commit. GitHub's production environment enforces the approved branch policy.
 
 No production credentials or SSH keys are stored in GitHub. Releases are public
 and contain only the binary, templates, assets, schema, and commit ID. Downloads
