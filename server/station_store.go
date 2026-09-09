@@ -21,6 +21,7 @@ var errCooldown = errors.New("Please wait a second before trying again.")
 type Poll struct {
 	Scope       string    `json:"scope,omitempty"`
 	Creator     string    `json:"creator,omitempty"`
+	FeaturedAt  int64     `json:"featuredAt,omitempty"`
 	Ends        int64     `json:"ends,omitempty"`
 	Unavailable bool      `json:"-"`
 	Withdrawn   bool      `json:"withdrawn,omitempty"`
@@ -303,6 +304,9 @@ func (s *Station) click(id string, session Session, choice int, requestID string
 	if p.Status != "live" || (p.Ends > 0 && now >= p.Ends) {
 		return errClosed
 	}
+	if p.Scope == "selection" && actual.AccountID == "" {
+		return errSignIn
+	}
 	if choice < 0 || choice >= len(p.Options) {
 		return errors.New("Choose one of the available options.")
 	}
@@ -384,6 +388,9 @@ func (s *Station) click(id string, session Session, choice int, requestID string
 		if _, err = tx.Exec(q.sql, q.args...); err != nil {
 			return err
 		}
+	}
+	if err = recordGuestParticipation(tx, actual); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

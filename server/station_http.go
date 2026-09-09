@@ -53,7 +53,9 @@ type Page struct {
 	Next                 Poll
 	Formats              []Poll
 	Discussion           []Discussion
+	ShowNextInvite       bool
 	Voted, NextVoted     bool
+	Nominated, Eligible  bool
 	AuthEnabled          bool
 	Admin                AdminPage
 }
@@ -75,6 +77,7 @@ func (s *Station) routes() http.Handler {
 	mux.HandleFunc("GET /live", s.live)
 	mux.HandleFunc("POST /poll/{id}/click/{choice}", s.vote)
 	mux.HandleFunc("POST /profile", s.profile)
+	mux.HandleFunc("POST /account/invitation/dismiss", s.dismissInvitation)
 	mux.HandleFunc("GET /create", s.studio)
 	mux.HandleFunc("POST /events", s.submitEvent)
 	mux.HandleFunc("GET /account", s.account)
@@ -204,6 +207,9 @@ func (s *Station) board(session Session) (Page, error) {
 		return d, err
 	}
 	d.Discussion, err = s.comments(mainID)
+	if err == nil {
+		d.ShowNextInvite, err = s.showParticipationPrompt(session)
+	}
 	return d, err
 }
 func (s *Station) home(w http.ResponseWriter, r *http.Request) {
@@ -242,6 +248,10 @@ func (s *Station) detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.decay(time.Now().UnixMilli())
+	if p.Scope == "selection" && p.Status == "live" && v.AccountID == "" {
+		http.Error(w, "Sign in to vote for the next main event", 403)
+		return
+	}
 	comments, err := s.comments(p.ID)
 	if err != nil {
 		http.Error(w, "Could not load discussion", 500)
@@ -256,7 +266,17 @@ func (s *Station) detail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not load candidates", 500)
 		return
 	}
-	renderPage(w, "page", Page{Title: p.Title, Mode: "detail", Poll: p, Session: v, Discussion: comments, Voted: voted})
+	nominated, eligible, err := s.nominationState(p)
+	if err != nil {
+		http.Error(w, "Could not load nomination status", 500)
+		return
+	}
+	showInvite, err := s.showParticipationPrompt(v)
+	if err != nil {
+		http.Error(w, "Could not load participation notice", 500)
+		return
+	}
+	renderPage(w, "page", Page{Title: p.Title, Mode: "detail", Poll: p, Session: v, Discussion: comments, Voted: voted, Nominated: nominated, Eligible: eligible, ShowNextInvite: showInvite})
 }
 func (s *Station) vote(w http.ResponseWriter, r *http.Request) {
 	session, err := s.getSession(w, r, false)
@@ -330,6 +350,10 @@ func (s *Station) live(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		d.Poll, err = s.poll(id)
+		if err == nil && d.Poll.Scope == "selection" && d.Poll.Status == "live" && v.AccountID == "" {
+			http.Error(w, "Sign in to vote for the next main event", 403)
+			return
+		}
 		if err == nil {
 			err = s.presentCandidates(&d.Poll)
 		}
@@ -339,7 +363,13 @@ func (s *Station) live(w http.ResponseWriter, r *http.Request) {
 		d.Poll.decay(time.Now().UnixMilli())
 		d.Session, d.Mode = v, "detail"
 		if err == nil {
+			d.ShowNextInvite, err = s.showParticipationPrompt(v)
+		}
+		if err == nil {
 			d.Voted, err = s.hasVoted(d.Poll, v)
+		}
+		if err == nil {
+			d.Nominated, d.Eligible, err = s.nominationState(d.Poll)
 		}
 		name = "event-live"
 	} else {
@@ -350,6 +380,21 @@ func (s *Station) live(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	renderPage(w, name, d)
+}
+
+func (s *Station) dismissInvitation(w http.ResponseWriter, r *http.Request) {
+	v, err := s.getSession(w, r, false)
+	if err != nil {
+		http.Error(w, "Open an event to continue", 403)
+		return
+	}
+	if err = r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form", 400)
+		return
+	}
+	_, err = s.db.Exec("UPDATE participation_prompts SET dismissed=1 WHERE session=?", v.ID)
+	r.SetPathValue("id", url.PathEscape(r.FormValue("poll")))
+	s.actionResponse(w, r, err, "Invitation dismissed.")
 }
 
 func (s *Station) presentCandidates(p *Poll) error {

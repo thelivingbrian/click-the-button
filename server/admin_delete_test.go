@@ -26,6 +26,25 @@ func deletionAdmin(t *testing.T, s *Station) Session {
 	return v
 }
 
+func nominatedBallot(t *testing.T, s *Station, admin Session, now int64) Page {
+	t.Helper()
+	member := testAccount(t, s, "candidate-creator")
+	for _, title := range []string{"Which neighborhood needs more trees?", "Should the town add bike lanes?", "Which park should get new lights?"} {
+		id, err := s.createEvent(member, "one", title, "Yes\nNo", now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = s.moderate(admin, "nominate", id, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	board, err := s.board(admin)
+	if err != nil || len(board.Next.Candidates) != 3 {
+		t.Fatal("nominated ballot was not created", board.Next, err)
+	}
+	return board
+}
+
 func deleteForms(t *testing.T, body string) []url.Values {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(body))
@@ -105,7 +124,7 @@ func TestInlineDeleteControlsAndNativeCommentRemoval(t *testing.T) {
 				}
 			}
 		}
-		if counts["delete-comment"] != 1 || counts["delete-event"] != 1 || counts["delete-suggestion"] != 3 {
+		if counts["delete-comment"] != 1 || counts["delete-event"] != 1 || counts["delete-suggestion"] != 0 {
 			t.Fatal(counts)
 		}
 	}
@@ -135,7 +154,7 @@ func TestDeleteEventArchivesVotesAndRejectsNonAdmins(t *testing.T) {
 		t.Fatal(err)
 	}
 	comments, _ := s.comments(id)
-	actions := map[string]string{"delete-event": id, "delete-comment": fmt.Sprint(comments[0].ID), "delete-suggestion": board.Next.ID + ":" + board.Next.Candidates[0].ID}
+	actions := map[string]string{"delete-event": id, "delete-comment": fmt.Sprint(comments[0].ID)}
 	for _, session := range []Session{guest, member} {
 		for action, target := range actions {
 			session.Role = "admin"
@@ -186,8 +205,8 @@ func TestWithdrawEditorialSuggestionsPreservesVotesAndSchedule(t *testing.T) {
 	s := testStation(t)
 	admin := deletionAdmin(t, s)
 	member := testAccount(t, s, "voter")
-	board, _ := s.board(admin)
 	now := time.Now().UnixMilli()
+	board := nominatedBallot(t, s, admin, now)
 	if err := s.click(board.Next.ID, member, 0, "vote", now); err != nil {
 		t.Fatal(err)
 	}
@@ -239,8 +258,8 @@ func TestWithdrawnRowsDisappearWithoutChangingVoteIndices(t *testing.T) {
 	admin := deletionAdmin(t, s)
 	voter := testAccount(t, s, "already-voted")
 	newVoter := testAccount(t, s, "new-voter")
-	board, _ := s.board(admin)
 	now := time.Now().UnixMilli()
+	board := nominatedBallot(t, s, admin, now)
 	if err := s.click(board.Next.ID, voter, 1, "before-withdrawal", now); err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +274,7 @@ func TestWithdrawnRowsDisappearWithoutChangingVoteIndices(t *testing.T) {
 	if current.Next.Total() != 1 || current.Next.VisibleTotal() != 0 {
 		t.Fatal("historical and active counts were not preserved")
 	}
-	for _, viewer := range []Session{admin, voter, newVoter, testGuest(t, s)} {
+	for _, viewer := range []Session{admin, voter, newVoter} {
 		for _, path := range []string{"/", "/live", "/poll/" + board.Next.ID, "/live?poll=" + board.Next.ID} {
 			w := httptest.NewRecorder()
 			s.routes().ServeHTTP(w, requestWithSession("GET", path, "", viewer))
@@ -263,14 +282,32 @@ func TestWithdrawnRowsDisappearWithoutChangingVoteIndices(t *testing.T) {
 			if w.Code != 200 {
 				t.Fatal(path, w.Code, body)
 			}
-			for _, removed := range []string{board.Next.Options[1], "Removed suggestion", "Withdrawn", "/poll/" + board.Next.ID + "/click/1"} {
+			for _, removed := range []string{"Removed suggestion", "Withdrawn", "/poll/" + board.Next.ID + "/click/1"} {
 				if strings.Contains(body, removed) {
 					t.Fatal("removed row remains", path, removed)
 				}
 			}
+			if strings.Contains(path, board.Next.ID) && strings.Contains(body, board.Next.Options[1]) {
+				t.Fatal("removed ballot row remains", path)
+			}
 			if viewer.ID == newVoter.ID && !strings.Contains(body, "/poll/"+board.Next.ID+"/click/2") {
 				t.Fatal("remaining button lost original index", path)
 			}
+		}
+	}
+	guest := testGuest(t, s)
+	for _, path := range []string{"/", "/live"} {
+		w := httptest.NewRecorder()
+		s.routes().ServeHTTP(w, requestWithSession("GET", path, "", guest))
+		if w.Code != 200 || strings.Contains(w.Body.String(), "Choose next week’s") {
+			t.Fatal("guest ballot remained visible", path, w.Code)
+		}
+	}
+	for _, path := range []string{"/poll/" + board.Next.ID, "/live?poll=" + board.Next.ID} {
+		w := httptest.NewRecorder()
+		s.routes().ServeHTTP(w, requestWithSession("GET", path, "", guest))
+		if w.Code != 403 {
+			t.Fatal("guest accessed ballot detail", path, w.Code)
 		}
 	}
 	if err := s.click(board.Next.ID, newVoter, choices[1].Index, "remaining-choice", now); err != nil {

@@ -18,6 +18,7 @@ type AdminAccount struct {
 type AdminEvent struct {
 	Poll              Poll
 	Hidden, Nominated bool
+	Eligible          bool
 }
 type AuditEntry struct {
 	Actor, Action, Target string
@@ -38,6 +39,11 @@ func (s *Station) admin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d := Page{Title: "Administration", Mode: "admin", Session: v}
+	var mainEnds int64
+	if err = s.db.QueryRow("SELECT ends FROM event_schedule WHERE id=1").Scan(&mainEnds); err != nil {
+		http.Error(w, "Could not load schedule", 500)
+		return
+	}
 	rows, err := s.db.Query(`SELECT p.state,COALESCE(m.hidden,0),COALESCE(m.nominated,0) FROM polls p LEFT JOIN moderation_events m ON m.poll=p.id WHERE p.status='live' ORDER BY p.rowid DESC LIMIT 100`)
 	if err != nil {
 		http.Error(w, "Could not load administration", 500)
@@ -53,6 +59,7 @@ func (s *Station) admin(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if e.Poll.Scope != "" {
+			e.Eligible = e.Poll.Scope == "community" && e.Poll.Ends > mainEnds && !e.Hidden
 			d.Admin.Events = append(d.Admin.Events, e)
 		}
 	}
@@ -183,6 +190,9 @@ func (s *Station) moderate(session Session, action, target string, now int64) er
 		case "restore":
 			_, err = tx.Exec("UPDATE moderation_events SET hidden=0 WHERE poll=?", target)
 		case "nominate":
+			if err = nominateEvent(tx, p, now); err != nil {
+				return err
+			}
 			_, err = tx.Exec("UPDATE moderation_events SET nominated=1 WHERE poll=? AND hidden=0", target)
 		case "unnominate":
 			_, err = tx.Exec("UPDATE moderation_events SET nominated=0 WHERE poll=?", target)
@@ -224,6 +234,9 @@ func (s *Station) moderate(session Session, action, target string, now int64) er
 			return errors.New("Suggestion not found")
 		}
 		if _, err = tx.Exec("INSERT OR IGNORE INTO withdrawn_candidates(ballot,candidate) VALUES(?,?)", ballot, candidate); err != nil {
+			return err
+		}
+		if _, err = tx.Exec("UPDATE moderation_events SET nominated=0 WHERE poll=?", candidate); err != nil {
 			return err
 		}
 	case "delete-comment":
@@ -275,7 +288,26 @@ func unavailableCandidate(db queryRower, ballot, candidate string) (bool, error)
 	}
 	var withdrawn bool
 	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM withdrawn_candidates WHERE ballot=? AND candidate=?)", ballot, candidate).Scan(&withdrawn)
-	return withdrawn, err
+	if err != nil || withdrawn {
+		return withdrawn, err
+	}
+	var candidateRaw, ballotRaw []byte
+	var nominated bool
+	err = db.QueryRow("SELECT p.state,b.state,COALESCE(m.nominated,0) FROM polls p JOIN polls b ON b.id=? LEFT JOIN moderation_events m ON m.poll=p.id WHERE p.id=?", ballot, candidate).Scan(&candidateRaw, &ballotRaw, &nominated)
+	if err == sql.ErrNoRows {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	var p, b Poll
+	if err = json.Unmarshal(candidateRaw, &p); err != nil {
+		return false, err
+	}
+	if err = json.Unmarshal(ballotRaw, &b); err != nil {
+		return false, err
+	}
+	return !nominated || p.Scope != "community" || p.Status != "live" || p.Ends <= b.Ends, nil
 }
 func (s *Station) visibleEvent(w http.ResponseWriter, r *http.Request, id string) bool {
 	hidden, err := hiddenEvent(s.db, id)

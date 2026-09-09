@@ -45,15 +45,8 @@ func TestAdminModerationPermissionsAndWithdrawnWinner(t *testing.T) {
 		t.Fatal(err)
 	}
 	board, _ := s.board(admin)
-	if err = s.advance(board.Poll.Ends); err != nil {
-		t.Fatal(err)
-	}
-	board, err = s.board(admin)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if board.Next.Candidates[0].ID != id {
-		t.Fatal("priority not included", board.Next.Candidates)
+	if len(board.Next.Candidates) != 1 || board.Next.Candidates[0].ID != id {
+		t.Fatal("nomination not included in current ballot", board.Next.Candidates)
 	}
 	guest := testGuest(t, s)
 	if err = s.discuss(id, guest, "remove this private text", now+1000); err != nil {

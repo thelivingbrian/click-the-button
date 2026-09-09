@@ -329,6 +329,9 @@ func (s *Station) finishLogin(guest Session, identity GoogleIdentity, now int64)
 	if _, err = tx.Exec("UPDATE discussion SET session=? WHERE session=?", v.ID, guest.ID); err != nil {
 		return Session{}, err
 	}
+	if _, err = tx.Exec("INSERT OR IGNORE INTO participation_prompts(session,dismissed) SELECT ?,1 FROM participation_prompts WHERE session=?", v.ID, guest.ID); err != nil {
+		return Session{}, err
+	}
 	if _, err = tx.Exec("DELETE FROM account_sessions WHERE session=?", guest.ID); err != nil {
 		return Session{}, err
 	}

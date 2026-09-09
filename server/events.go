@@ -43,16 +43,6 @@ func newEvent(kind, title string, options []string, now int64) Poll {
 	return p
 }
 
-// Editorial fallback candidates keep a ballot available before accounts launch.
-// Community submissions take these slots in subsequent ballots.
-func editorialEvents(now int64) []Poll {
-	return []Poll{
-		newEvent("one", "Should publicly funded research be free to read?", []string{"Yes", "No", "It depends"}, now),
-		newEvent("one", "Which should we explore next: the ocean or space?", []string{"The ocean", "Space"}, now),
-		newEvent("scale", "How optimistic are you about the next ten years?", nil, now),
-	}
-}
-
 func insertEvent(tx *sql.Tx, p Poll) error {
 	b, err := json.Marshal(p)
 	if err != nil {
@@ -69,6 +59,7 @@ func (s *Station) initializeEvents(now int64) error {
  CREATE TABLE IF NOT EXISTS next_ballots(poll TEXT NOT NULL REFERENCES polls(id), account TEXT NOT NULL REFERENCES accounts(id), PRIMARY KEY(poll,account));
  CREATE TABLE IF NOT EXISTS event_schedule(id INTEGER PRIMARY KEY CHECK(id=1), main TEXT NOT NULL REFERENCES polls(id), next TEXT NOT NULL REFERENCES polls(id), ends INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS discussion(id INTEGER PRIMARY KEY AUTOINCREMENT, poll TEXT NOT NULL REFERENCES polls(id), session TEXT NOT NULL REFERENCES sessions(id), handle TEXT NOT NULL, body TEXT NOT NULL, ts INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS participation_prompts(session TEXT PRIMARY KEY REFERENCES sessions(id), dismissed INTEGER NOT NULL DEFAULT 0);
  CREATE TABLE IF NOT EXISTS withdrawn_candidates(ballot TEXT NOT NULL REFERENCES polls(id), candidate TEXT NOT NULL, PRIMARY KEY(ballot,candidate));
  CREATE INDEX IF NOT EXISTS discussion_event_time ON discussion(poll,ts);
  CREATE INDEX IF NOT EXISTS discussion_session_time ON discussion(session,ts);
@@ -115,41 +106,7 @@ func (s *Station) initializeEvents(now int64) error {
 func makeNext(tx *sql.Tx, main Poll, now int64) (Poll, error) {
 	next := newEvent("one", "Choose next week’s main event", nil, now)
 	next.Scope, next.Ends = "selection", main.Ends
-	rows, err := tx.Query("SELECT p.state FROM polls p LEFT JOIN moderation_events m ON m.poll=p.id WHERE p.status='live' AND COALESCE(m.hidden,0)=0 ORDER BY COALESCE(m.nominated,0) DESC,p.rowid")
-	if err != nil {
-		return next, err
-	}
-	for rows.Next() {
-		var raw []byte
-		var p Poll
-		if err = rows.Scan(&raw); err != nil {
-			break
-		}
-		if err = json.Unmarshal(raw, &p); err != nil {
-			break
-		}
-		if p.Scope == "community" && p.Title != main.Title && len(next.Candidates) < 3 {
-			next.Candidates = append(next.Candidates, p)
-		}
-	}
-	rowErr := rows.Err()
-	rows.Close()
-	if err != nil {
-		return next, err
-	}
-	if rowErr != nil {
-		return next, rowErr
-	}
-	for _, p := range editorialEvents(now) {
-		if len(next.Candidates) < 3 && p.Title != main.Title {
-			next.Candidates = append(next.Candidates, p)
-		}
-	}
-	next.Options = nil
-	for _, p := range next.Candidates {
-		next.Options = append(next.Options, p.Title)
-	}
-	next.Counts, next.Energy = make([]int64, len(next.Options)), make([]float64, len(next.Options))
+	next.Options, next.Candidates, next.Counts, next.Energy = nil, nil, nil, nil
 	return next, insertEvent(tx, next)
 }
 
@@ -180,27 +137,36 @@ func (s *Station) rotateTx(tx *sql.Tx, now int64) error {
 			winner = i
 		}
 	}
-	// Withdrawn candidates keep their historical votes but cannot be promoted.
-	chosen := newEvent("scale", "How is your week going?", nil, now)
-	if winner >= 0 {
-		chosen = next.Candidates[winner]
+	// Seal the selection votes at the boundary, keeping the winning event intact.
+	if err := archiveTx(tx, nextID, ends); err != nil {
+		return err
 	}
-	for _, id := range []string{mainID, nextID} {
-		if err := archiveTx(tx, id, ends); err != nil {
-			return err
-		}
-	}
-	// After downtime, open one new round on the original weekly boundary.
-	// Do not invent events or activity for weeks when the service was offline.
 	starts := ends + ((now-ends)/eventWeek)*eventWeek
-	main := newEvent(chosen.Kind, chosen.Title, chosen.Options, starts)
-	main.Scope, main.Creator, main.Ends = "main", chosen.Creator, starts+eventWeek
-	if chosen.Scope == "community" {
-		if err := archiveTx(tx, chosen.ID, ends); err != nil {
+	var main Poll
+	if winner >= 0 {
+		if err := tx.QueryRow("SELECT state FROM polls WHERE id=?", next.Candidates[winner].ID).Scan(&raw); err != nil {
+			return err
+		}
+		if err := json.Unmarshal(raw, &main); err != nil {
+			return err
+		}
+		if err := archiveTx(tx, mainID, ends); err != nil {
+			return err
+		}
+		main.Scope, main.FeaturedAt = "main", starts
+	} else {
+		if err := tx.QueryRow("SELECT state FROM polls WHERE id=?", mainID).Scan(&raw); err != nil {
+			return err
+		}
+		if err := json.Unmarshal(raw, &main); err != nil {
 			return err
 		}
 	}
-	if err := insertEvent(tx, main); err != nil {
+	main.Ends = max(main.Ends, starts+eventWeek)
+	if err := saveEventChange(tx, &main, now); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("UPDATE moderation_events SET nominated=0"); err != nil {
 		return err
 	}
 	ballot, err := makeNext(tx, main, starts)
@@ -353,6 +319,9 @@ func (s *Station) discuss(id string, session Session, body string, now int64) er
 		return err
 	}
 	if _, err = tx.Exec("DELETE FROM discussion WHERE poll=? AND id NOT IN (SELECT id FROM discussion WHERE poll=? ORDER BY id DESC LIMIT 50)", id, id); err != nil {
+		return err
+	}
+	if err = recordGuestParticipation(tx, actual); err != nil {
 		return err
 	}
 	return tx.Commit()

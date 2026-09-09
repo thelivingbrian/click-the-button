@@ -240,6 +240,14 @@ func TestSessionExpiryLogoutAndSuspension(t *testing.T) {
 	admin, _ := s.finishLogin(testGuest(t, s), GoogleIdentity{Subject: "owner", Email: "owner@gmail.com", Verified: true}, now)
 	member, _ := s.finishLogin(testGuest(t, s), GoogleIdentity{Subject: "member", Email: "member@gmail.com", Verified: true}, now)
 	board, _ := s.board(member)
+	candidate, err := s.createEvent(member, "one", "Should the library open later?", "Yes\nNo", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.moderate(admin, "nominate", candidate, now); err != nil {
+		t.Fatal(err)
+	}
+	board, _ = s.board(member)
 	if err := s.moderate(admin, "suspend", member.AccountID, now); err != nil {
 		t.Fatal(err)
 	}

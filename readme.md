@@ -42,16 +42,17 @@ At the boundary, one SQLite transaction:
 1. Freezes the outgoing main event and next-event ballot, including accepted vote
    history and a checksummed JSON export.
 2. Deletes their discussion; comments never enter result exports.
-3. Promotes the winning candidate to a fresh main event with empty results.
+3. Promotes the winning community candidate in place, preserving its results,
+  creator, and discussion, then extends its deadline through the featured week.
 4. Creates a new next-event ballot and updates the persisted schedule.
 
-Ties, including zero votes, favor the first listed candidate. The initial ballot
-contains explicitly labeled editorial candidates. Up to three visible live community submissions fill subsequent ballots before
-editorial fallbacks; administrator-prioritized candidates come first, then older
-submissions. A
-ballot's choices remain fixed for its entire week. Promoting a community event
-archives its original results and starts a fresh main round. Community events
-otherwise close after seven days.
+Ties favor the first listed nominated candidate. Ballots begin empty; an
+administrator nominates eligible, live community events directly from the
+administration page or event detail page. A candidate must close after the
+current main event. Ballot choices remain fixed for their week, except an
+administrator may withdraw a nomination. If no candidate remains eligible at
+the boundary, the current main event continues for another week. Community
+events otherwise close after seven days.
 
 On restart, an overdue round is closed at its stored deadline. One fresh round
 opens within the current interval on the original weekly schedule; the app does
@@ -99,18 +100,19 @@ role then follows the stable account ID, even if its Google email changes.
 Remove `BOOTSTRAP_ADMIN_EMAIL` after that first login. Other signups remain
 members; there is no public role-assignment endpoint or test-login bypass.
 
-At `/admin`, administrators can hide/restore community events, prioritize
-candidates for the following ballot, remove comments, suspend/restore member
+At `/admin`, administrators can hide/restore community events, nominate eligible
+candidates into the current ballot, remove comments, suspend/restore member
 accounts, and pause/resume new submissions. Administrator accounts cannot be
 suspended through these controls. Every action rechecks the role and session
 expiry in its database transaction. The audit log retains actions and target
 IDs, never deleted comment text. Hidden events are excluded from public pages,
 result downloads, participation, and promotion. Existing ballot votes are
-preserved when a candidate is withdrawn; if all candidates are withdrawn, an
-editorial fallback keeps a main event available.
+preserved when a candidate is withdrawn; if no eligible candidate remains, the
+current main event is extended for another week.
 
-Administrators also see trash icons beside comments, community event cards and
-event headings, and suggestions on the next-event ballot. Ordinary forms work
+Administrators also see nomination controls on eligible community event detail
+pages, trash icons beside comments, community event cards and event headings,
+and withdrawal controls on the next-event ballot. Ordinary forms work
 without JavaScript; with JavaScript, the icon asks for confirmation before
 submitting. The main event has no delete control. Comment deletion removes its
 row. Event deletion closes the event, removes its discussion and public access,
@@ -119,9 +121,9 @@ that candidate from the current ballot, retaining existing vote counts and
 preventing further votes or promotion. Withdrawn candidates disappear from the
 active ballot, and the remaining candidates are renumbered visually without
 changing their stored voting indices. Live totals show votes for the remaining
-candidates; historical counts remain intact in the sealed ballot export. If every suggestion is withdrawn, the
-next main event is a fresh "How is your week going?" scale. Ballot exports record
-which candidates were withdrawn. Deletion authorization is checked again in the
+candidates; historical counts remain intact in the sealed ballot export. If every
+suggestion is withdrawn, the current main event continues for another week.
+Ballot exports record which candidates were withdrawn. Deletion authorization is checked again in the
 database transaction.
 
 For HTTPS behind a reverse proxy, configure the exact public origin and preserve
