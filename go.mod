@@ -5,15 +5,19 @@ go 1.23.3
 toolchain go1.23.9
 
 require (
+	github.com/coreos/go-oidc/v3 v3.12.0
+	github.com/go-jose/go-jose/v4 v4.0.5
 	github.com/joho/godotenv v1.5.1
 	github.com/starfederation/datastar v0.21.4
 	github.com/wcharczuk/go-chart v2.0.1+incompatible
 	golang.org/x/net v0.33.0
+	golang.org/x/oauth2 v0.28.0
 	modernc.org/sqlite v1.38.0
 )
 
 require (
 	github.com/a-h/templ v0.2.793 // indirect
+	github.com/blend/go-sdk v1.20240719.1 // indirect
 	github.com/delaneyj/gostar v0.8.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/goccy/go-json v0.10.4 // indirect
@@ -21,11 +25,11 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/igrmk/treemap/v2 v2.0.1 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-sqlite3 v1.14.28 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/samber/lo v1.47.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
+	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/image v0.23.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect

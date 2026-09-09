@@ -40,6 +40,9 @@ func main() {
 		log.Fatal(err)
 	}
 	defer station.db.Close()
+	if err := station.configureGoogle(); err != nil {
+		log.Fatal(err)
+	}
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()

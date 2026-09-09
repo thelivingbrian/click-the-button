@@ -19,7 +19,7 @@ func testAccount(t *testing.T, s *Station, account string) Session {
 	if _, err := s.db.Exec("INSERT OR IGNORE INTO accounts(id,provider,subject) VALUES(?,'test',?)", account, account); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.db.Exec("INSERT INTO account_sessions(session,account) VALUES(?,?)", v.ID, account); err != nil {
+	if _, err := s.db.Exec("INSERT INTO account_sessions(session,account,expires) VALUES(?,?,?)", v.ID, account, time.Now().Add(loginLifetime).UnixMilli()); err != nil {
 		t.Fatal(err)
 	}
 	v, err := s.session(v.ID)

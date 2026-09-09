@@ -41,7 +41,7 @@ var stationTemplates = template.Must(template.New("station").Funcs(template.Func
 		}
 		return 0.08 + 0.85*float64(n)/float64(max)
 	},
-}).ParseFiles("templates/station.html", "templates/legacy.html"))
+}).ParseFiles("templates/station.html", "templates/legacy.html", "templates/admin.html"))
 
 type Page struct {
 	Title, Mode, Message string
@@ -54,6 +54,8 @@ type Page struct {
 	Formats              []Poll
 	Discussion           []Discussion
 	Voted, NextVoted     bool
+	AuthEnabled          bool
+	Admin                AdminPage
 }
 
 func (s *Station) routes() http.Handler {
@@ -67,6 +69,11 @@ func (s *Station) routes() http.Handler {
 	mux.HandleFunc("GET /create", s.studio)
 	mux.HandleFunc("POST /events", s.submitEvent)
 	mux.HandleFunc("GET /account", s.account)
+	mux.HandleFunc("POST /auth/google", s.googleStart)
+	mux.HandleFunc("GET /auth/google/callback", s.googleCallback)
+	mux.HandleFunc("POST /logout", s.logout)
+	mux.HandleFunc("GET /admin", s.admin)
+	mux.HandleFunc("POST /admin/action", s.adminAction)
 	mux.HandleFunc("POST /poll/{id}/discussion", s.postDiscussion)
 	mux.HandleFunc("GET /archive", s.archiveIndex)
 	mux.HandleFunc("GET /archive/{id}", s.detail)
@@ -87,12 +94,25 @@ func (s *Station) routes() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "same-origin")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com")
+		if s.auth != nil && r.Host != s.auth.origin.Host {
+			if r.Method != "GET" && r.Method != "HEAD" {
+				http.Error(w, "Use the configured site address", 403)
+				return
+			}
+			canonical := *s.auth.origin
+			canonical.Path = r.URL.Path
+			canonical.RawQuery = r.URL.RawQuery
+			http.Redirect(w, r, canonical.String(), http.StatusPermanentRedirect)
+			return
+		}
 		if r.Method == "POST" {
 			// All browser mutation requests must originate at this host. SameSite is
 			// defense in depth, not the sole cross-site request protection.
 			origin, err := url.Parse(r.Header.Get("Origin"))
 			scheme := "http"
-			if r.TLS != nil {
+			if s.secureCookies(r) {
 				scheme = "https"
 			}
 			if err != nil || origin.Host != r.Host || origin.Scheme != scheme || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
@@ -118,7 +138,7 @@ func (s *Station) getSession(w http.ResponseWriter, r *http.Request, create bool
 	}
 	v, err := s.newSession()
 	if err == nil {
-		http.SetCookie(w, &http.Cookie{Name: "station_guest", Value: v.ID, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil, MaxAge: 365 * 24 * 3600})
+		s.setSessionCookie(w, r, v)
 	}
 	return v, err
 }
@@ -157,7 +177,11 @@ func (s *Station) board(session Session) (Page, error) {
 		return d, err
 	}
 	for _, p := range polls {
-		if p.Scope == "community" {
+		hidden, e := hiddenEvent(s.db, p.ID)
+		if e != nil {
+			return d, e
+		}
+		if p.Scope == "community" && !hidden {
 			d.Polls = append(d.Polls, p)
 		}
 	}
@@ -166,6 +190,12 @@ func (s *Station) board(session Session) (Page, error) {
 	}
 	if d.NextVoted, err = s.hasVoted(d.Next, session); err != nil {
 		return d, err
+	}
+	for i := range d.Next.Candidates {
+		d.Next.Candidates[i].Unavailable, err = hiddenEvent(s.db, d.Next.Candidates[i].ID)
+		if err != nil {
+			return d, err
+		}
 	}
 	d.Discussion, err = s.comments(mainID)
 	return d, err
@@ -184,6 +214,9 @@ func (s *Station) home(w http.ResponseWriter, r *http.Request) {
 	renderPage(w, "page", d)
 }
 func (s *Station) detail(w http.ResponseWriter, r *http.Request) {
+	if !s.visibleEvent(w, r, r.PathValue("id")) {
+		return
+	}
 	if err := s.advance(time.Now().UnixMilli()); err != nil {
 		http.Error(w, "Could not load event", 500)
 		return
@@ -242,7 +275,7 @@ func (s *Station) actionResponse(w http.ResponseWriter, r *http.Request, err err
 	code := http.StatusOK
 	if err != nil {
 		message, code = err.Error(), http.StatusBadRequest
-		if errors.Is(err, errSignIn) {
+		if errors.Is(err, errSignIn) || errors.Is(err, errSuspended) {
 			code = http.StatusForbidden
 		}
 		if errors.Is(err, errClosed) || errors.Is(err, errVoted) {
@@ -281,6 +314,9 @@ func (s *Station) live(w http.ResponseWriter, r *http.Request) {
 	if id := r.URL.Query().Get("poll"); id != "" {
 		if err = s.advance(time.Now().UnixMilli()); err != nil {
 			http.Error(w, "Could not refresh", 500)
+			return
+		}
+		if !s.visibleEvent(w, r, id) {
 			return
 		}
 		d.Poll, err = s.poll(id)
@@ -331,11 +367,17 @@ func (s *Station) archiveIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	var visible []Poll
 	for _, p := range polls {
-		if p.Scope != "" {
+		hidden, e := hiddenEvent(s.db, p.ID)
+		if e != nil {
+			http.Error(w, "Could not load archive", 500)
+			return
+		}
+		if p.Scope != "" && !hidden {
 			visible = append(visible, p)
 		}
 	}
-	renderPage(w, "page", Page{Title: "Archive", Mode: "archive", Archives: visible})
+	v, _ := s.getSession(w, r, false)
+	renderPage(w, "page", Page{Title: "Archive", Mode: "archive", Archives: visible, Session: v})
 }
 func (s *Station) studio(w http.ResponseWriter, r *http.Request) {
 	v, err := s.getSession(w, r, true)
@@ -354,6 +396,9 @@ func (s *Station) studio(w http.ResponseWriter, r *http.Request) {
 	renderPage(w, "page", d)
 }
 func (s *Station) export(w http.ResponseWriter, r *http.Request) {
+	if !s.visibleEvent(w, r, r.PathValue("id")) {
+		return
+	}
 	var payload []byte
 	var hash string
 	if err := s.db.QueryRow("SELECT payload,sha256 FROM archives WHERE poll=?", r.PathValue("id")).Scan(&payload, &hash); err != nil {
@@ -397,7 +442,16 @@ func (s *Station) restricted(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Manual event controls are unavailable. Main events close automatically each week.", http.StatusForbidden)
 }
 func (s *Station) account(w http.ResponseWriter, r *http.Request) {
-	renderPage(w, "page", Page{Title: "Sign in", Mode: "account"})
+	v, err := s.getSession(w, r, true)
+	if err != nil {
+		http.Error(w, "Could not load account", 500)
+		return
+	}
+	message := ""
+	if r.URL.Query().Get("login") == "cancelled" {
+		message = "Google sign-in was cancelled. You can try again."
+	}
+	renderPage(w, "page", Page{Title: "Account", Mode: "account", Session: v, AuthEnabled: s.auth != nil, Message: message})
 }
 func (s *Station) submitEvent(w http.ResponseWriter, r *http.Request) {
 	v, err := s.getSession(w, r, false)

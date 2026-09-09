@@ -19,25 +19,26 @@ var errVoted = errors.New("You have already voted in this event.")
 var errCooldown = errors.New("Please wait a second before trying again.")
 
 type Poll struct {
-	Scope      string    `json:"scope,omitempty"`
-	Creator    string    `json:"creator,omitempty"`
-	Ends       int64     `json:"ends,omitempty"`
-	Candidates []Poll    `json:"candidates,omitempty"`
-	ID         string    `json:"id"`
-	Kind       string    `json:"kind"`
-	Title      string    `json:"title"`
-	Subtitle   string    `json:"subtitle"`
-	Options    []string  `json:"options"`
-	Counts     []int64   `json:"counts"`
-	Energy     []float64 `json:"energy"`
-	Peak       float64   `json:"peak"`
-	PeakAt     int64     `json:"peakAt,omitempty"`
-	Updated    int64     `json:"updated"`
-	Created    int64     `json:"created"`
-	Closed     int64     `json:"closed,omitempty"`
-	Status     string    `json:"status"`
-	Version    int64     `json:"version"`
-	Parent     string    `json:"parent,omitempty"`
+	Scope       string    `json:"scope,omitempty"`
+	Creator     string    `json:"creator,omitempty"`
+	Ends        int64     `json:"ends,omitempty"`
+	Unavailable bool      `json:"-"`
+	Candidates  []Poll    `json:"candidates,omitempty"`
+	ID          string    `json:"id"`
+	Kind        string    `json:"kind"`
+	Title       string    `json:"title"`
+	Subtitle    string    `json:"subtitle"`
+	Options     []string  `json:"options"`
+	Counts      []int64   `json:"counts"`
+	Energy      []float64 `json:"energy"`
+	Peak        float64   `json:"peak"`
+	PeakAt      int64     `json:"peakAt,omitempty"`
+	Updated     int64     `json:"updated"`
+	Created     int64     `json:"created"`
+	Closed      int64     `json:"closed,omitempty"`
+	Status      string    `json:"status"`
+	Version     int64     `json:"version"`
+	Parent      string    `json:"parent,omitempty"`
 }
 
 func (p Poll) Total() int64 {
@@ -93,7 +94,10 @@ func (p *Poll) decay(now int64) {
 	p.Updated = now
 }
 
-type Session struct{ ID, Handle, AccountID string }
+type Session struct {
+	ID, Handle, AccountID, Email, Role string
+	Suspended                          bool
+}
 type Activity struct {
 	Title, Handle, Option string
 	At                    int64
@@ -102,6 +106,7 @@ type Station struct {
 	db        *sql.DB
 	mu        sync.Mutex
 	legacyDir string
+	auth      *googleAuth
 }
 
 func randomID() string {
@@ -219,9 +224,7 @@ func (s *Station) list(status string) ([]Poll, error) {
 	return result, rows.Err()
 }
 func (s *Station) session(id string) (Session, error) {
-	var v Session
-	err := s.db.QueryRow("SELECT s.id,s.handle,COALESCE(a.account,'') FROM sessions s LEFT JOIN account_sessions a ON a.session=s.id WHERE s.id=?", id).Scan(&v.ID, &v.Handle, &v.AccountID)
-	return v, err
+	return sessionFrom(s.db, id, time.Now().UnixMilli())
 }
 func (s *Station) newSession() (Session, error) {
 	v := Session{ID: randomID()}
@@ -251,6 +254,20 @@ func (s *Station) click(id string, session Session, choice int, requestID string
 	if err = json.Unmarshal(b, &p); err != nil {
 		return err
 	}
+	actual, err := sessionFrom(tx, session.ID, now)
+	if err != nil {
+		return err
+	}
+	if actual.Suspended {
+		return errSuspended
+	}
+	hidden, err := hiddenEvent(tx, id)
+	if err != nil {
+		return err
+	}
+	if hidden {
+		return errClosed
+	}
 	if p.Status != "live" || (p.Ends > 0 && now >= p.Ends) {
 		return errClosed
 	}
@@ -266,8 +283,16 @@ func (s *Station) click(id string, session Session, choice int, requestID string
 	}
 	if p.Scope == "selection" {
 		var account string
-		if err = tx.QueryRow("SELECT account FROM account_sessions WHERE session=?", session.ID).Scan(&account); err != nil {
+		account = actual.AccountID
+		if account == "" {
 			return errSignIn
+		}
+		hidden, err := hiddenEvent(tx, p.Candidates[choice].ID)
+		if err != nil {
+			return err
+		}
+		if hidden {
+			return errors.New("This candidate has been withdrawn.")
 		}
 		var exists int
 		if err = tx.QueryRow("SELECT count(*) FROM next_ballots WHERE poll=? AND account=?", id, account).Scan(&exists); err != nil {

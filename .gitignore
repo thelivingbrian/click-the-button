@@ -7,3 +7,7 @@
 /server/data/
 /server/server
 .env
+
+/server/secrets/
+.env.production
+client_secret*.json

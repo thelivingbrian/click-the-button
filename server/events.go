@@ -12,7 +12,7 @@ import (
 
 const eventWeek = int64(7 * 24 * time.Hour / time.Millisecond)
 
-var errSignIn = errors.New("Sign in is required for this action. Accounts are not available yet.")
+var errSignIn = errors.New("Sign in to continue.")
 
 type Discussion struct {
 	ID           int64
@@ -75,6 +75,9 @@ func (s *Station) initializeEvents(now int64) error {
 	if err != nil {
 		return err
 	}
+	if err = s.initializeAccounts(); err != nil {
+		return err
+	}
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -108,7 +111,7 @@ func (s *Station) initializeEvents(now int64) error {
 func makeNext(tx *sql.Tx, main Poll, now int64) (Poll, error) {
 	next := newEvent("one", "Choose next week’s main event", nil, now)
 	next.Scope, next.Ends = "selection", main.Ends
-	rows, err := tx.Query("SELECT state FROM polls WHERE status='live' ORDER BY rowid")
+	rows, err := tx.Query("SELECT p.state FROM polls p LEFT JOIN moderation_events m ON m.poll=p.id WHERE p.status='live' AND COALESCE(m.hidden,0)=0 ORDER BY COALESCE(m.nominated,0) DESC,p.rowid")
 	if err != nil {
 		return next, err
 	}
@@ -163,14 +166,21 @@ func (s *Station) rotateTx(tx *sql.Tx, now int64) error {
 	if err := json.Unmarshal(raw, &next); err != nil {
 		return err
 	}
-	winner := 0
+	winner := -1
 	for i, count := range next.Counts {
-		if count > next.Counts[winner] {
+		hidden, err := hiddenEvent(tx, next.Candidates[i].ID)
+		if err != nil {
+			return err
+		}
+		if !hidden && (winner == -1 || count > next.Counts[winner]) {
 			winner = i
 		}
 	}
-	// Ties (including no votes) go to the first listed candidate.
-	chosen := next.Candidates[winner]
+	// Withdrawn candidates keep their historical votes but cannot be promoted.
+	chosen := editorialEvents(now)[0]
+	if winner >= 0 {
+		chosen = next.Candidates[winner]
+	}
 	for _, id := range []string{mainID, nextID} {
 		if err := archiveTx(tx, id, ends); err != nil {
 			return err
@@ -280,6 +290,20 @@ func (s *Station) discuss(id string, session Session, body string, now int64) er
 	if err = json.Unmarshal(raw, &p); err != nil {
 		return err
 	}
+	actual, err := sessionFrom(tx, session.ID, now)
+	if err != nil {
+		return err
+	}
+	if actual.Suspended {
+		return errSuspended
+	}
+	hidden, err := hiddenEvent(tx, id)
+	if err != nil {
+		return err
+	}
+	if hidden {
+		return errClosed
+	}
 	if p.Status != "live" || (p.Ends > 0 && now >= p.Ends) {
 		return errClosed
 	}
@@ -307,6 +331,9 @@ func (s *Station) createEvent(session Session, kind, title, options string, now 
 	actual, err := s.session(session.ID)
 	if err != nil || actual.AccountID == "" {
 		return "", errSignIn
+	}
+	if actual.Suspended {
+		return "", errSuspended
 	}
 	title = strings.TrimSpace(title)
 	if utf8.RuneCountInString(title) < 8 || utf8.RuneCountInString(title) > 160 {
@@ -356,6 +383,20 @@ func (s *Station) createEvent(session Session, kind, title, options string, now 
 		return "", err
 	}
 	defer tx.Rollback()
+	current, err := sessionFrom(tx, session.ID, now)
+	if err != nil || current.AccountID == "" {
+		return "", errSignIn
+	}
+	if current.Suspended {
+		return "", errSuspended
+	}
+	var paused bool
+	if err = tx.QueryRow("SELECT submissions_paused FROM site_settings WHERE id=1").Scan(&paused); err != nil {
+		return "", err
+	}
+	if paused {
+		return "", errors.New("Community submissions are temporarily paused.")
+	}
 	var count int
 	if err = tx.QueryRow("SELECT count(*) FROM polls WHERE json_extract(state,'$.creator')=? AND json_extract(state,'$.created')>?", actual.AccountID, now-int64(24*time.Hour/time.Millisecond)).Scan(&count); err != nil {
 		return "", err

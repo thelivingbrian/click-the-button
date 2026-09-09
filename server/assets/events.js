@@ -8,6 +8,12 @@
     refreshing = true;
     try {
       const response = await fetch(url, {cache: 'no-store'});
+      if (response.status === 404) {
+        document.querySelector('[data-round]').textContent = 'This event is no longer available.';
+        delete document.body.dataset.liveUrl;
+        connection.textContent = '';
+        return;
+      }
       if (!response.ok) throw new Error('Refresh failed');
       const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
       const incoming = doc.querySelector('[data-round]');
