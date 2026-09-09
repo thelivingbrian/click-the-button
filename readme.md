@@ -109,6 +109,18 @@ result downloads, participation, and promotion. Existing ballot votes are
 preserved when a candidate is withdrawn; if all candidates are withdrawn, an
 editorial fallback keeps a main event available.
 
+Administrators also see trash icons beside comments, community event cards and
+event headings, and suggestions on the next-event ballot. Ordinary forms work
+without JavaScript; with JavaScript, the icon asks for confirmation before
+submitting. The main event has no delete control. Comment deletion removes its
+row. Event deletion closes the event, removes its discussion and public access,
+and preserves its recorded results internally. Suggestion deletion withdraws
+that candidate from the current ballot, retaining existing vote counts and
+preventing further votes or promotion. If every suggestion is withdrawn, the
+next main event is a fresh "How is your week going?" scale. Ballot exports record
+which candidates were withdrawn. Deletion authorization is checked again in the
+database transaction.
+
 For HTTPS behind a reverse proxy, configure the exact public origin and preserve
 the public Host header. Cookie security and POST origin validation use this
 configured origin instead of trusting arbitrary forwarded headers. Other hosts
@@ -119,8 +131,14 @@ to it when authentication is enabled so OAuth cookies remain on one host.
 Discussion accepts 1–500 characters, escapes submitted text, enforces a 15-second
 interval per browser, and retains at most 50 comments per event. Closure removes
 the comments from the application database. Database backups may retain older
-copies. A public deployment still needs durable hosting, an automated backup/restore
-process, monitoring, and an operational retention policy for interaction history.
+copies. Each comment row stores an increasing ID, event ID, browser-session ID,
+display name at posting, text, and posting timestamp in `station.db`. The display
+name is copied, so later profile edits do not rewrite existing comments. Oldest
+comments beyond the 50-row limit are deleted, and deleted IDs are never reused.
+The moderation audit stores actor and target IDs without comment text. Deletion
+is a database operation, not a guarantee of secure erasure from SQLite pages,
+WAL files, or backups. Current production backups have no automatic expiry; set
+an operational retention policy when choosing how long old copies should remain.
 
 ## Routes and archives
 

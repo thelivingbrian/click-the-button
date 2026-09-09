@@ -200,11 +200,8 @@ func (s *Station) board(session Session) (Page, error) {
 	if d.NextVoted, err = s.hasVoted(d.Next, session); err != nil {
 		return d, err
 	}
-	for i := range d.Next.Candidates {
-		d.Next.Candidates[i].Unavailable, err = hiddenEvent(s.db, d.Next.Candidates[i].ID)
-		if err != nil {
-			return d, err
-		}
+	if err = s.presentCandidates(&d.Next); err != nil {
+		return d, err
 	}
 	d.Discussion, err = s.comments(mainID)
 	return d, err
@@ -253,6 +250,10 @@ func (s *Station) detail(w http.ResponseWriter, r *http.Request) {
 	voted, err := s.hasVoted(p, v)
 	if err != nil {
 		http.Error(w, "Could not load ballot", 500)
+		return
+	}
+	if err = s.presentCandidates(&p); err != nil {
+		http.Error(w, "Could not load candidates", 500)
 		return
 	}
 	renderPage(w, "page", Page{Title: p.Title, Mode: "detail", Poll: p, Session: v, Discussion: comments, Voted: voted})
@@ -330,6 +331,9 @@ func (s *Station) live(w http.ResponseWriter, r *http.Request) {
 		}
 		d.Poll, err = s.poll(id)
 		if err == nil {
+			err = s.presentCandidates(&d.Poll)
+		}
+		if err == nil {
 			d.Discussion, err = s.comments(id)
 		}
 		d.Poll.decay(time.Now().UnixMilli())
@@ -346,6 +350,23 @@ func (s *Station) live(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	renderPage(w, name, d)
+}
+
+func (s *Station) presentCandidates(p *Poll) error {
+	if p.Scope != "selection" || p.Status != "live" {
+		return nil
+	}
+	for i := range p.Candidates {
+		unavailable, err := unavailableCandidate(s.db, p.ID, p.Candidates[i].ID)
+		if err != nil {
+			return err
+		}
+		p.Candidates[i].Unavailable = unavailable
+		if unavailable {
+			p.Options[i] = "Removed suggestion"
+		}
+	}
+	return nil
 }
 func (s *Station) profile(w http.ResponseWriter, r *http.Request) {
 	v, err := s.getSession(w, r, false)

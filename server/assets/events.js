@@ -36,6 +36,11 @@
     } finally { refreshing = false; }
   }
   document.addEventListener('submit', async event => {
+    const confirmation = event.target.dataset.confirm;
+    if (confirmation && !window.confirm(confirmation)) {
+      event.preventDefault();
+      return;
+    }
     const form = event.target.closest('form[data-action]');
     if (!form) return;
     event.preventDefault();

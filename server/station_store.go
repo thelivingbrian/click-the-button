@@ -23,6 +23,7 @@ type Poll struct {
 	Creator     string    `json:"creator,omitempty"`
 	Ends        int64     `json:"ends,omitempty"`
 	Unavailable bool      `json:"-"`
+	Withdrawn   bool      `json:"withdrawn,omitempty"`
 	Candidates  []Poll    `json:"candidates,omitempty"`
 	ID          string    `json:"id"`
 	Kind        string    `json:"kind"`
@@ -287,7 +288,7 @@ func (s *Station) click(id string, session Session, choice int, requestID string
 		if account == "" {
 			return errSignIn
 		}
-		hidden, err := hiddenEvent(tx, p.Candidates[choice].ID)
+		hidden, err := unavailableCandidate(tx, p.ID, p.Candidates[choice].ID)
 		if err != nil {
 			return err
 		}
@@ -394,6 +395,12 @@ func archiveTx(tx *sql.Tx, id string, now int64) error {
 	p.Status = "archived"
 	p.Closed = now
 	p.Version++
+	for i := range p.Candidates {
+		p.Candidates[i].Withdrawn, err = unavailableCandidate(tx, p.ID, p.Candidates[i].ID)
+		if err != nil {
+			return err
+		}
+	}
 	a := Archive{Format: 1, Poll: p, Provenance: "Counts represent accepted interactions under the displayed rules. Discussion is not archived."}
 	rows, err := tx.Query("SELECT state FROM history WHERE poll=? ORDER BY version", id)
 	if err != nil {

@@ -68,11 +68,15 @@ func (s *Station) initializeEvents(now int64) error {
  CREATE TABLE IF NOT EXISTS account_sessions(session TEXT PRIMARY KEY REFERENCES sessions(id), account TEXT NOT NULL REFERENCES accounts(id));
  CREATE TABLE IF NOT EXISTS next_ballots(poll TEXT NOT NULL REFERENCES polls(id), account TEXT NOT NULL REFERENCES accounts(id), PRIMARY KEY(poll,account));
  CREATE TABLE IF NOT EXISTS event_schedule(id INTEGER PRIMARY KEY CHECK(id=1), main TEXT NOT NULL REFERENCES polls(id), next TEXT NOT NULL REFERENCES polls(id), ends INTEGER NOT NULL);
- CREATE TABLE IF NOT EXISTS discussion(id INTEGER PRIMARY KEY, poll TEXT NOT NULL REFERENCES polls(id), session TEXT NOT NULL REFERENCES sessions(id), handle TEXT NOT NULL, body TEXT NOT NULL, ts INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS discussion(id INTEGER PRIMARY KEY AUTOINCREMENT, poll TEXT NOT NULL REFERENCES polls(id), session TEXT NOT NULL REFERENCES sessions(id), handle TEXT NOT NULL, body TEXT NOT NULL, ts INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS withdrawn_candidates(ballot TEXT NOT NULL REFERENCES polls(id), candidate TEXT NOT NULL, PRIMARY KEY(ballot,candidate));
  CREATE INDEX IF NOT EXISTS discussion_event_time ON discussion(poll,ts);
  CREATE INDEX IF NOT EXISTS discussion_session_time ON discussion(session,ts);
  `)
 	if err != nil {
+		return err
+	}
+	if err = s.initializeDiscussionIDs(); err != nil {
 		return err
 	}
 	if err = s.initializeAccounts(); err != nil {
@@ -168,7 +172,7 @@ func (s *Station) rotateTx(tx *sql.Tx, now int64) error {
 	}
 	winner := -1
 	for i, count := range next.Counts {
-		hidden, err := hiddenEvent(tx, next.Candidates[i].ID)
+		hidden, err := unavailableCandidate(tx, next.ID, next.Candidates[i].ID)
 		if err != nil {
 			return err
 		}
@@ -177,7 +181,7 @@ func (s *Station) rotateTx(tx *sql.Tx, now int64) error {
 		}
 	}
 	// Withdrawn candidates keep their historical votes but cannot be promoted.
-	chosen := editorialEvents(now)[0]
+	chosen := newEvent("scale", "How is your week going?", nil, now)
 	if winner >= 0 {
 		chosen = next.Candidates[winner]
 	}
@@ -205,6 +209,34 @@ func (s *Station) rotateTx(tx *sql.Tx, now int64) error {
 	}
 	_, err = tx.Exec("UPDATE event_schedule SET main=?,next=?,ends=? WHERE id=1", main.ID, ballot.ID, main.Ends)
 	return err
+}
+
+// Do not reuse deleted comment IDs: an old page must never delete a newer comment.
+func (s *Station) initializeDiscussionIDs() error {
+	var schema string
+	if err := s.db.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name='discussion'").Scan(&schema); err != nil {
+		return err
+	}
+	if strings.Contains(strings.ToUpper(schema), "AUTOINCREMENT") {
+		return nil
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	_, err = tx.Exec(`
+ CREATE TABLE discussion_migration(id INTEGER PRIMARY KEY AUTOINCREMENT, poll TEXT NOT NULL REFERENCES polls(id), session TEXT NOT NULL REFERENCES sessions(id), handle TEXT NOT NULL, body TEXT NOT NULL, ts INTEGER NOT NULL);
+ INSERT INTO discussion_migration SELECT id,poll,session,handle,body,ts FROM discussion;
+ DROP TABLE discussion;
+ ALTER TABLE discussion_migration RENAME TO discussion;
+ CREATE INDEX discussion_event_time ON discussion(poll,ts);
+ CREATE INDEX discussion_session_time ON discussion(session,ts);
+ `)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Station) advance(now int64) error {

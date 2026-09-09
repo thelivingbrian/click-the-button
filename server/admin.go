@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -135,7 +137,13 @@ func (s *Station) adminAction(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 403)
 		return
 	}
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+	target := "/admin"
+	if r.FormValue("return") == "home" {
+		target = "/"
+	} else if back, ok := strings.CutPrefix(r.FormValue("return"), "poll:"); ok {
+		target = "/poll/" + url.PathEscape(back)
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
 func (s *Station) moderate(session Session, action, target string, now int64) error {
@@ -151,7 +159,7 @@ func (s *Station) moderate(session Session, action, target string, now int64) er
 		return errors.New("Administrator access required")
 	}
 	switch action {
-	case "hide", "restore", "nominate", "unnominate":
+	case "hide", "restore", "nominate", "unnominate", "delete-event":
 		var raw []byte
 		var p Poll
 		if err = tx.QueryRow("SELECT state FROM polls WHERE id=?", target).Scan(&raw); err != nil {
@@ -170,7 +178,7 @@ func (s *Station) moderate(session Session, action, target string, now int64) er
 			return err
 		}
 		switch action {
-		case "hide":
+		case "hide", "delete-event":
 			_, err = tx.Exec("UPDATE moderation_events SET hidden=1,nominated=0 WHERE poll=?", target)
 		case "restore":
 			_, err = tx.Exec("UPDATE moderation_events SET hidden=0 WHERE poll=?", target)
@@ -182,10 +190,41 @@ func (s *Station) moderate(session Session, action, target string, now int64) er
 		if err != nil {
 			return err
 		}
-		if action == "hide" {
+		if action == "delete-event" {
+			if err = archiveTx(tx, target, now); err != nil {
+				return err
+			}
+		}
+		if action == "hide" || action == "delete-event" {
 			if _, err = tx.Exec("DELETE FROM discussion WHERE poll=?", target); err != nil {
 				return err
 			}
+		}
+	case "delete-suggestion":
+		ballot, candidate, ok := strings.Cut(target, ":")
+		if !ok {
+			return errors.New("Invalid suggestion")
+		}
+		var raw []byte
+		if err = tx.QueryRow("SELECT p.state FROM polls p JOIN event_schedule e ON e.next=p.id WHERE p.id=? AND p.status='live'", ballot).Scan(&raw); err != nil {
+			return errors.New("This ballot is no longer open")
+		}
+		var p Poll
+		if err = json.Unmarshal(raw, &p); err != nil {
+			return err
+		}
+		if now >= p.Ends {
+			return errClosed
+		}
+		found := false
+		for _, c := range p.Candidates {
+			found = found || c.ID == candidate
+		}
+		if !found {
+			return errors.New("Suggestion not found")
+		}
+		if _, err = tx.Exec("INSERT OR IGNORE INTO withdrawn_candidates(ballot,candidate) VALUES(?,?)", ballot, candidate); err != nil {
+			return err
 		}
 	case "delete-comment":
 		id, e := strconv.ParseInt(target, 10, 64)
@@ -227,6 +266,16 @@ func hiddenEvent(db queryRower, id string) (bool, error) {
 		return false, nil
 	}
 	return hidden, err
+}
+
+func unavailableCandidate(db queryRower, ballot, candidate string) (bool, error) {
+	hidden, err := hiddenEvent(db, candidate)
+	if err != nil || hidden {
+		return hidden, err
+	}
+	var withdrawn bool
+	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM withdrawn_candidates WHERE ballot=? AND candidate=?)", ballot, candidate).Scan(&withdrawn)
+	return withdrawn, err
 }
 func (s *Station) visibleEvent(w http.ResponseWriter, r *http.Request, id string) bool {
 	hidden, err := hiddenEvent(s.db, id)
