@@ -1,0 +1,22 @@
+[Unit]
+Description=Click the Button
+After=network.target
+
+[Service]
+User=click-the-button
+Group=click-the-button
+WorkingDirectory=/srv/click-the-button/current
+EnvironmentFile=/etc/click-the-button/production.env
+ExecStart=/srv/click-the-button/current/server
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/click-the-button/shared/data
+
+[Install]
+WantedBy=multi-user.target

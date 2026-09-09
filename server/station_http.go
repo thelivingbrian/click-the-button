@@ -60,6 +60,15 @@ type Page struct {
 
 func (s *Station) routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		if err := s.db.PingContext(r.Context()); err != nil {
+			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "revision": buildRevision})
+	})
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("assets"))))
 	mux.HandleFunc("GET /{$}", s.home)
 	mux.HandleFunc("GET /poll/{id}", s.detail)

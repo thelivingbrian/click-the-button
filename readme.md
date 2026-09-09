@@ -144,12 +144,62 @@ New databases do not seed them. Their existing direct URLs and exports continue
 to work. The original `data/clicks.db` is never opened by the new event system.
 
 Cats vs. Dogs reads `data/legacy/manifest.json`; downloads serve the frozen
-`history.json`. These local results are accurately labeled synthetic development
-activity. To create the snapshot from the retired app, stop its server and run
+`history.json`. Each archive identifies its production or synthetic provenance.
+To create a local snapshot from the retired app, stop its server and run
 `python3 scripts/archive-legacy.py` from the repository root. The script checks
 port 8080, creates a consistent backup, exports history, records checksums, and
 verifies an existing archive without replacing it. Its cutoff is the last
 persisted snapshot because the retired app had no atomic final flush.
+For production, supply `--production --port 14010 --source /path/to/clicks.db
+--target /path/to/legacy --source-revision <legacy-commit>` after stopping the
+legacy process. Keep the original database and an off-host copy of the archive.
+
+## Production releases
+
+In GitHub **Actions → Release production → Run workflow**, select **main**.
+The workflow tests the selected commit, builds a Linux amd64 binary, and publishes
+a `production-*` release with the commit ID and SHA-256 checksum. The droplet
+checks GitHub every two minutes, creates a verified SQLite backup, switches the
+release directory, restarts the service, and checks the running revision and
+legacy archive. Actions succeeds only after the public `/healthz` reports that
+commit. Source changes must be merged into `main` before release.
+
+No production credentials or SSH keys are stored in GitHub. Releases are public
+and contain only the binary, templates, assets, schema, and commit ID. Downloads
+use HTTPS and are checked against the release manifest. Repository maintainers
+who can publish releases can deploy production; protect that access accordingly.
+This uses GitHub-hosted build machines and an outbound pull from the droplet,
+so the existing SSH firewall allowlist remains usable.
+
+The app runs as `click-the-button` under `click-the-button.service`, listening on
+`127.0.0.1:14010` behind nginx. Code lives under `/srv/click-the-button/releases/`
+and `current` selects the release. Persistent data lives in
+`/srv/click-the-button/shared/data/`. Environment and Google credentials live
+under `/etc/click-the-button/`; the initial administrator uses the configured
+verified bootstrap email. Remove that setting after the first admin login.
+
+The root-owned `deploy/release.py` is installed at
+`/usr/local/lib/click-the-button/release.py`. The application user can only use
+sudo for `systemctl restart click-the-button.service`. Unit templates are in
+`deploy/`; deployer and unit changes require installing those files through SSH.
+The release timer starts `click-the-button-release.service`. Inspect deployment
+errors using `journalctl -u click-the-button-release.service`; app logs use
+`journalctl -u click-the-button.service`.
+
+Every deployment and the daily 04:00 UTC backup timer create a consistent SQLite
+snapshot, frozen legacy files, and checksums under `/srv/click-the-button/backups/`.
+Backups are retained until an operator removes them. Monitor disk usage and copy
+backups off the server; the timers alone do not protect against droplet loss.
+
+If health fails, the deployer switches to the previous binary and restarts it.
+It records the failed revision to avoid repeated retries. It never restores a
+database automatically because that could discard newly accepted votes. Keep
+schema changes compatible with the preceding release. If manual data recovery
+is needed, stop the app and release timer, preserve the current database and WAL,
+restore a verified backup, select compatible code, and restart. Publish a new
+release to recover forward, or explicitly retry a bundle with
+`sudo -u click-the-button python3 /usr/local/lib/click-the-button/release.py
+--bundle /path/to/release.tar.gz --revision <full-commit>`.
 
 ## Persistence and validation
 

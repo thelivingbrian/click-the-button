@@ -1,0 +1,9 @@
+[Unit]
+Description=Check for a Click the Button release every two minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=120s
+
+[Install]
+WantedBy=timers.target

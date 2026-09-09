@@ -5,7 +5,9 @@ import (
 	"log"
 	"net/http" //_ "net/http/pprof"
 	"os"
+	"os/signal"
 	"sync/atomic"
+	"syscall"
 	"text/template"
 	"time"
 )
@@ -17,8 +19,9 @@ const (
 )
 
 var (
-	greeting = "Choose your favorite!"
-	tmpl     = template.Must(template.ParseFiles("templates/home.tmpl.html"))
+	buildRevision = "development"
+	greeting      = "Choose your favorite!"
+	tmpl          = template.Must(template.ParseFiles("templates/home.tmpl.html"))
 )
 
 type App struct {
@@ -43,12 +46,19 @@ func main() {
 	if err := station.configureGoogle(); err != nil {
 		log.Fatal(err)
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
-		for now := range ticker.C {
-			if err := station.advance(now.UnixMilli()); err != nil {
-				log.Println("event rotation:", err)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case now := <-ticker.C:
+				if err := station.advance(now.UnixMilli()); err != nil {
+					log.Println("event rotation:", err)
+				}
 			}
 		}
 	}()
@@ -57,7 +67,22 @@ func main() {
 		host = "127.0.0.1"
 	}
 	log.Println("station listening on http://" + host + ":" + config.port)
-	log.Fatal(http.ListenAndServe(host+":"+config.port, station.routes()))
+	server := &http.Server{Addr: host + ":" + config.port, Handler: station.routes(), ReadHeaderTimeout: 10 * time.Second}
+	done := make(chan struct{})
+	go func() {
+		<-ctx.Done()
+		shutdown, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdown); err != nil {
+			log.Println("shutdown:", err)
+			_ = server.Close()
+		}
+		close(done)
+	}()
+	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+		log.Fatal(err)
+	}
+	<-done
 }
 
 func createApp(db DB, config *Configuration) *App {

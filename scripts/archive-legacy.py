@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Freeze the stopped local legacy database at its persisted-snapshot cutoff."""
+"""Freeze a stopped legacy database at its persisted-snapshot cutoff."""
+import argparse
 import datetime
 import hashlib
 import json
@@ -18,6 +19,15 @@ def digest(path):
 
 
 def main():
+    global SOURCE, TARGET
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--source', type=pathlib.Path, default=SOURCE)
+    parser.add_argument('--target', type=pathlib.Path, default=TARGET)
+    parser.add_argument('--port', type=int, default=8080)
+    parser.add_argument('--production', action='store_true')
+    parser.add_argument('--source-revision')
+    args = parser.parse_args()
+    SOURCE, TARGET = args.source.resolve(), args.target.resolve()
     if TARGET.exists():
         manifest = json.loads((TARGET / 'manifest.json').read_text())
         for filename, expected in manifest['sha256'].items():
@@ -25,8 +35,8 @@ def main():
         print('Existing archive verified; no files changed.')
         return
     with socket.socket() as sock:
-        if sock.connect_ex(('127.0.0.1', 8080)) == 0:
-            raise SystemExit('Stop the local server on port 8080 before freezing the database.')
+        if sock.connect_ex(('127.0.0.1', args.port)) == 0:
+            raise SystemExit(f'Stop the legacy server on port {args.port} before freezing the database.')
     assert SOURCE.exists(), 'No legacy database exists'
     staging = TARGET.with_name('legacy-staging')
     staging.mkdir()  # Refuse to overwrite an incomplete previous attempt.
@@ -41,11 +51,12 @@ def main():
     manifest = {
         'title': 'Dogs vs. Cats', 'options': ['Dog', 'Cat'],
         'rules': 'Unlimited clicks; totals are clicks, not unique voters.',
-        'provenance': 'Synthetic local development activity; not production results.',
+        'provenance': ('Production results from click-the-button.com.' if args.production else
+                       'Synthetic local development activity; not production results.'),
         'cutoff': 'Last persisted snapshot. The legacy process has no atomic close/final flush.',
         'cutoffUnix': rows[-1][0], 'final': history[-1], 'snapshots': len(rows),
         'archivedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        'sourceRevision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+        'sourceRevision': args.source_revision or subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
         'sha256': {name: digest(staging / name) for name in ('clicks.db', 'history.json')},
     }
     (staging / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
