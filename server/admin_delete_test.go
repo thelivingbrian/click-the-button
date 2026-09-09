@@ -200,8 +200,8 @@ func TestWithdrawEditorialSuggestionsPreservesVotesAndSchedule(t *testing.T) {
 	if current.Next.Total() != 1 || current.Poll.ID != board.Poll.ID {
 		t.Fatal("deletion changed totals or main event")
 	}
-	if current.Next.Options[0] != "Removed suggestion" {
-		t.Fatal("removed suggestion title still visible")
+	if len(current.Next.VisibleChoices()) != 0 || current.Next.VisibleTotal() != 0 {
+		t.Fatal("removed suggestions still visible")
 	}
 	if err := s.click(board.Next.ID, testAccount(t, s, "another"), 0, "late", now); err == nil {
 		t.Fatal("withdrawn candidate received vote")
@@ -231,6 +231,61 @@ func TestWithdrawEditorialSuggestionsPreservesVotesAndSchedule(t *testing.T) {
 	}
 	if err := s.moderate(admin, "delete-suggestion", board.Next.ID+":"+board.Next.Candidates[0].ID, board.Poll.Ends); err == nil {
 		t.Fatal("stale ballot modified")
+	}
+}
+
+func TestWithdrawnRowsDisappearWithoutChangingVoteIndices(t *testing.T) {
+	s := testStation(t)
+	admin := deletionAdmin(t, s)
+	voter := testAccount(t, s, "already-voted")
+	newVoter := testAccount(t, s, "new-voter")
+	board, _ := s.board(admin)
+	now := time.Now().UnixMilli()
+	if err := s.click(board.Next.ID, voter, 1, "before-withdrawal", now); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.moderate(admin, "delete-suggestion", board.Next.ID+":"+board.Next.Candidates[1].ID, now); err != nil {
+		t.Fatal(err)
+	}
+	current, _ := s.board(admin)
+	choices := current.Next.VisibleChoices()
+	if len(choices) != 2 || choices[1].Index != 2 || choices[1].Number != 2 || choices[1].Label != board.Next.Options[2] {
+		t.Fatal("visible numbering changed vote identity", choices)
+	}
+	if current.Next.Total() != 1 || current.Next.VisibleTotal() != 0 {
+		t.Fatal("historical and active counts were not preserved")
+	}
+	for _, viewer := range []Session{admin, voter, newVoter, testGuest(t, s)} {
+		for _, path := range []string{"/", "/live", "/poll/" + board.Next.ID, "/live?poll=" + board.Next.ID} {
+			w := httptest.NewRecorder()
+			s.routes().ServeHTTP(w, requestWithSession("GET", path, "", viewer))
+			body := w.Body.String()
+			if w.Code != 200 {
+				t.Fatal(path, w.Code, body)
+			}
+			for _, removed := range []string{board.Next.Options[1], "Removed suggestion", "Withdrawn", "/poll/" + board.Next.ID + "/click/1"} {
+				if strings.Contains(body, removed) {
+					t.Fatal("removed row remains", path, removed)
+				}
+			}
+			if viewer.ID == newVoter.ID && !strings.Contains(body, "/poll/"+board.Next.ID+"/click/2") {
+				t.Fatal("remaining button lost original index", path)
+			}
+		}
+	}
+	if err := s.click(board.Next.ID, newVoter, choices[1].Index, "remaining-choice", now); err != nil {
+		t.Fatal(err)
+	}
+	stored, _ := s.poll(board.Next.ID)
+	if stored.Counts[1] != 1 || stored.Counts[2] != 1 {
+		t.Fatal("vote moved between candidates", stored.Counts)
+	}
+	if err := s.advance(board.Poll.Ends); err != nil {
+		t.Fatal(err)
+	}
+	archived, _ := s.poll(board.Next.ID)
+	if len(archived.VisibleChoices()) != 3 || archived.VisibleTotal() != 2 || archived.Options[1] != board.Next.Options[1] {
+		t.Fatal("archive lost original results")
 	}
 }
 

@@ -362,9 +362,6 @@ func (s *Station) presentCandidates(p *Poll) error {
 			return err
 		}
 		p.Candidates[i].Unavailable = unavailable
-		if unavailable {
-			p.Options[i] = "Removed suggestion"
-		}
 	}
 	return nil
 }

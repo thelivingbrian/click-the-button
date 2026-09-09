@@ -49,6 +49,37 @@ func (p Poll) Total() int64 {
 	}
 	return n
 }
+
+type PollChoice struct {
+	Index, Number int
+	Label         string
+	Count         int64
+	Candidate     Poll
+}
+
+// Filter the presentation without changing the indices used by stored ballots.
+func (p Poll) VisibleChoices() []PollChoice {
+	var choices []PollChoice
+	for i, label := range p.Options {
+		var candidate Poll
+		if p.Scope == "selection" {
+			candidate = p.Candidates[i]
+			if p.Status == "live" && candidate.Unavailable {
+				continue
+			}
+		}
+		choices = append(choices, PollChoice{Index: i, Number: len(choices) + 1, Label: label, Count: p.Counts[i], Candidate: candidate})
+	}
+	return choices
+}
+
+func (p Poll) VisibleTotal() int64 {
+	var total int64
+	for _, choice := range p.VisibleChoices() {
+		total += choice.Count
+	}
+	return total
+}
 func (p Poll) Average() string {
 	if p.Total() == 0 {
 		return "—"

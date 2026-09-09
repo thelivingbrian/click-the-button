@@ -116,7 +116,10 @@ submitting. The main event has no delete control. Comment deletion removes its
 row. Event deletion closes the event, removes its discussion and public access,
 and preserves its recorded results internally. Suggestion deletion withdraws
 that candidate from the current ballot, retaining existing vote counts and
-preventing further votes or promotion. If every suggestion is withdrawn, the
+preventing further votes or promotion. Withdrawn candidates disappear from the
+active ballot, and the remaining candidates are renumbered visually without
+changing their stored voting indices. Live totals show votes for the remaining
+candidates; historical counts remain intact in the sealed ballot export. If every suggestion is withdrawn, the
 next main event is a fresh "How is your week going?" scale. Ballot exports record
 which candidates were withdrawn. Deletion authorization is checked again in the
 database transaction.
