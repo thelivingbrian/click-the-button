@@ -24,6 +24,8 @@ printf '%s\n' 'click-the-button ALL=(root) NOPASSWD: /usr/bin/systemctl restart 
 visudo -cf "$sudoers"
 install -m 0440 "$sudoers" /etc/sudoers.d/click-the-button
 systemctl daemon-reload
-systemd-analyze verify /etc/systemd/system/click-the-button.service /etc/systemd/system/click-the-button-release.service /etc/systemd/system/click-the-button-backup.service
+if test -x /srv/click-the-button/current/server; then
+    systemd-analyze verify /etc/systemd/system/click-the-button.service /etc/systemd/system/click-the-button-release.service /etc/systemd/system/click-the-button-backup.service
+fi
 systemctl enable click-the-button.service click-the-button-release.timer click-the-button-backup.timer
 printf '%s\n' 'Host installed. Populate shared/data/legacy, install the first bundle, then start both timers.'
