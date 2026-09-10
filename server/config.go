@@ -19,21 +19,20 @@ type Configuration struct {
 
 func getConfiguration() *Configuration {
 	err := godotenv.Load()
-	if err != nil {
-		fmt.Println("Error loading .env file")
-		return nil
+	if err != nil && !os.IsNotExist(err) {
+		panic(err)
 	}
 
 	si := os.Getenv("SNAPSHOT_INTERVAL")
 	snapshotInterval, err := time.ParseDuration(si)
-	if err != nil {
+	if err != nil || snapshotInterval < 0 {
 		fmt.Printf("Invalid SNAPSHOT_INTERVAL=%q, defaulting to 0: %v\n", si, err)
 		snapshotInterval = 0
 	}
 
 	bi := os.Getenv("BROADCAST_INTERVAL")
 	broadcastInterval, err := time.ParseDuration(bi)
-	if err != nil {
+	if err != nil || broadcastInterval < 0 {
 		fmt.Printf("Invalid BROADCAST_INTERVAL=%q, defaulting to 0: %v\n", bi, err)
 		broadcastInterval = 0
 	}
@@ -44,6 +43,9 @@ func getConfiguration() *Configuration {
 		pprofPort:         os.Getenv("PPROF_PORT"),
 		snapshotInterval:  snapshotInterval,
 		broadcastInterval: broadcastInterval,
+	}
+	if config.port == "" {
+		config.port = "8080"
 	}
 	return &config
 }

@@ -1,0 +1,9 @@
+[Unit]
+Description=Back up Click the Button results
+
+[Service]
+Type=oneshot
+User=click-the-button
+Group=click-the-button
+ExecStart=/usr/bin/python3 /usr/local/lib/click-the-button/release.py --backup
+UMask=0027
