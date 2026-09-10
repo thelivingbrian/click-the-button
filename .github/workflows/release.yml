@@ -2,6 +2,12 @@ name: Release production
 
 on:
   workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to release (main or prototype/*)
+        required: true
+        default: main
+        type: string
 
 permissions:
   contents: read
@@ -20,9 +26,20 @@ jobs:
       contents: write
     timeout-minutes: 20
     steps:
+      - name: Validate release branch
+        env:
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          case "$BRANCH" in
+            main|prototype/*) ;;
+            *) echo "Only main and prototype/* branches may be released." >&2; exit 1 ;;
+          esac
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ inputs.branch }}
           persist-credentials: false
+      - name: Record release revision
+        run: echo "RELEASE_REVISION=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
@@ -39,14 +56,14 @@ jobs:
           GOARCH: amd64
         run: |
           mkdir -p dist/package
-          go build -trimpath -ldflags="-s -w -X main.buildRevision=$GITHUB_SHA" -o dist/package/server ./server
+          go build -trimpath -ldflags="-s -w -X main.buildRevision=$RELEASE_REVISION" -o dist/package/server ./server
           cp -R server/assets server/templates server/sql dist/package/
-          printf '%s\n' "$GITHUB_SHA" > dist/package/REVISION
+          printf '%s\n' "$RELEASE_REVISION" > dist/package/REVISION
           tar -czf dist/click-the-button-linux-amd64.tar.gz -C dist/package server assets templates sql REVISION
           python3 - <<'PY'
           import hashlib, json, os, pathlib
           bundle = pathlib.Path('dist/click-the-button-linux-amd64.tar.gz')
-          pathlib.Path('dist/release.json').write_text(json.dumps({'revision': os.environ['GITHUB_SHA'], 'sha256': hashlib.sha256(bundle.read_bytes()).hexdigest()}) + '\n')
+          pathlib.Path('dist/release.json').write_text(json.dumps({'revision': os.environ['RELEASE_REVISION'], 'sha256': hashlib.sha256(bundle.read_bytes()).hexdigest()}) + '\n')
           PY
       - name: Publish production release
         env:
@@ -54,7 +71,7 @@ jobs:
         run: |
           tag="production-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
           gh release create "$tag" dist/click-the-button-linux-amd64.tar.gz dist/release.json \
-            --target "$GITHUB_SHA" --title "Production $GITHUB_SHA" \
+            --target "$RELEASE_REVISION" --title "Production $RELEASE_REVISION" \
             --notes "Tested Linux release. The production server checks for updates every two minutes, backs up results, and verifies health after deployment." --latest
       - name: Verify live revision
         run: |
@@ -64,7 +81,7 @@ jobs:
               try:
                   with urllib.request.urlopen('https://click-the-button.com/healthz', timeout=10) as response:
                       health = json.load(response)
-                  if health == {'status': 'ok', 'revision': os.environ['GITHUB_SHA']}:
+                    if health == {'status': 'ok', 'revision': os.environ['RELEASE_REVISION']}:
                       print('Production is serving', health['revision'])
                       break
               except Exception:

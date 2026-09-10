@@ -179,8 +179,9 @@ legacy process. Keep the original database and an off-host copy of the archive.
 
 ## Production releases
 
-In GitHub **Actions → Release production → Run workflow**, select an approved
-branch: `main` or a `prototype/*` branch.
+In GitHub **Actions → Release production → Run workflow**, use the workflow from
+`main`, then enter an approved source branch in **branch**: `main` or a
+`prototype/*` branch.
 The workflow tests the selected commit, builds a Linux amd64 binary, and publishes
 a `production-*` release with the commit ID and SHA-256 checksum. The droplet
 checks GitHub every two minutes, creates a verified SQLite backup, switches the
