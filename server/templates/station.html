@@ -1,6 +1,6 @@
 {{define "page"}}<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f3ec">
-<title>{{.Title}} · Click the Button</title><link rel="stylesheet" href="/assets/station.css"><script defer src="/assets/events.js"></script>
+<title>{{.Title}} · Click the Button</title><link rel="stylesheet" href="/assets/station.css"><style>.scale-input{grid-template-columns:1fr}.scale-input .choice{min-height:65px}</style><script defer src="/assets/events.js"></script>
 </head><body {{if eq .Mode "board"}}data-live-url="/live"{{else if and (eq .Mode "detail") (eq .Poll.Status "live")}}data-live-url="/live?poll={{.Poll.ID}}"{{end}}>
 <a class="skip" href="#main">Skip to content</a>
 <header class="topbar"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">↗</span> click the button</a><nav aria-label="Main navigation"><a href="/" {{if eq .Mode "board"}}aria-current="page"{{end}}>Current event</a><a href="/archive" {{if eq .Mode "archive"}}aria-current="page"{{end}}>Archive</a><a href="/create" {{if eq .Mode "create"}}aria-current="page"{{end}}>Create <span aria-hidden="true">＋</span></a>{{if eq .Session.Role "admin"}}<a href="/admin">Admin</a>{{end}}<a class="account-link" href="/account">{{if .Session.AccountID}}Account{{else}}Sign in ↗{{end}}</a></nav></header>
