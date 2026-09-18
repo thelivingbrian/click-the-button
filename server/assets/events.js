@@ -73,7 +73,7 @@
     document.getElementById('fixed-options').hidden = !fixed;
     const options = document.getElementById('options');
     options.required = !fixed;
-    document.getElementById('options-help').textContent = kind === 'pulse' ? 'Use one button label.' : kind === 'tug' ? 'Use exactly two options.' : 'Use 2–8 unique options.';
+    document.getElementById('options-help').textContent = kind === 'pulse' ? 'Use 1-8 unique options.' : kind === 'tug' ? 'Use exactly two options.' : 'Use 2-8 unique options.';
   }
   document.querySelectorAll('input[name="kind"]').forEach(input => input.addEventListener('change', configureFormat));
   configureFormat();
