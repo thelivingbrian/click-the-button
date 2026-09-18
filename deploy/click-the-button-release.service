@@ -1,0 +1,12 @@
+[Unit]
+Description=Check and deploy Click the Button production releases
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=click-the-button
+Group=click-the-button
+ExecStart=/usr/bin/python3 /usr/local/lib/click-the-button/release.py
+TimeoutStartSec=240
+UMask=0027
