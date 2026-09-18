@@ -267,3 +267,21 @@ func TestArchivePageHasNoLiveSubscription(t *testing.T) {
 		t.Fatal(rr.Body.String())
 	}
 }
+
+func TestScaleAndStarsUseInlineVoteCards(t *testing.T) {
+	s := testStation(t)
+	for _, path := range []string{"/poll/scale", "/poll/stars"} {
+		rr := httptest.NewRecorder()
+		s.routes().ServeHTTP(rr, httptest.NewRequest("GET", path, nil))
+		body := rr.Body.String()
+		if rr.Code != 200 {
+			t.Fatalf("%s: %d %s", path, rr.Code, body)
+		}
+		if !strings.Contains(body, "choice result-choice") {
+			t.Fatalf("%s: inline vote cards missing", path)
+		}
+		if strings.Contains(body, "aria-label=\"Choices\"") {
+			t.Fatalf("%s: duplicate choices panel rendered", path)
+		}
+	}
+}
