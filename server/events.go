@@ -43,6 +43,31 @@ func newEvent(kind, title string, options []string, now int64) Poll {
 	return p
 }
 
+func optionLimits(kind string) (min, max int, ok bool) {
+	switch kind {
+	case "one":
+		return 2, 8, true
+	case "contest":
+		return 2, 8, true
+	case "tug":
+		return 2, 2, true
+	case "pulse":
+		return 1, 8, true
+	default:
+		return 0, 0, false
+	}
+}
+
+func optionLimitError(min, max int) error {
+	if min == max {
+		if min == 1 {
+			return errors.New("This format needs exactly one option, one per line.")
+		}
+		return fmt.Errorf("This format needs exactly %d options, one per line.", min)
+	}
+	return fmt.Errorf("This format needs %d-%d options, one per line.", min, max)
+}
+
 func insertEvent(tx *sql.Tx, p Poll) error {
 	b, err := json.Marshal(p)
 	if err != nil {
@@ -350,7 +375,7 @@ func (s *Station) createEvent(session Session, kind, title, options string, now 
 		return "", errors.New("Choose an available event format.")
 	}
 	var choices []string
-	if kind == "one" || kind == "contest" || kind == "tug" || kind == "pulse" {
+	if min, max, customOptions := optionLimits(kind); customOptions {
 		seen := map[string]bool{}
 		for _, option := range strings.Split(options, "\n") {
 			option = strings.TrimSpace(option)
@@ -364,15 +389,8 @@ func (s *Station) createEvent(session Session, kind, title, options string, now 
 			seen[key] = true
 			choices = append(choices, option)
 		}
-		min, max := 2, 8
-		if kind == "tug" {
-			max = 2
-		}
-		if kind == "pulse" {
-			min, max = 1, 1
-		}
 		if len(choices) < min || len(choices) > max {
-			return "", fmt.Errorf("This format needs %d–%d options, one per line.", min, max)
+			return "", optionLimitError(min, max)
 		}
 	}
 	p := newEvent(kind, title, choices, now)

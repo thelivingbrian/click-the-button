@@ -81,7 +81,7 @@ jobs:
               try:
                   with urllib.request.urlopen('https://click-the-button.com/healthz', timeout=10) as response:
                       health = json.load(response)
-                    if health == {'status': 'ok', 'revision': os.environ['RELEASE_REVISION']}:
+                  if health == {'status': 'ok', 'revision': os.environ['RELEASE_REVISION']}:
                       print('Production is serving', health['revision'])
                       break
               except Exception:

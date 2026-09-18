@@ -185,10 +185,18 @@ func TestCommunityFormatsValidationAndNomination(t *testing.T) {
 	if err = s.click(id, testGuest(t, s), 0, "guest-community", now); err != nil {
 		t.Fatal(err)
 	}
-	for _, tc := range []struct{ kind, title, options string }{{"unknown", "Invalid event type", "Yes\nNo"}, {"heat", "Heat map is not ready for release", ""}, {"one", "short", "Yes\nNo"}, {"one", "Duplicate options", "Yes\nyes"}, {"tug", "Needs two options", "A\nB\nC"}, {"pulse", "Needs one button", "A\nB"}} {
+	for _, tc := range []struct{ kind, title, options string }{{"unknown", "Invalid event type", "Yes\nNo"}, {"heat", "Heat map is not ready for release", ""}, {"one", "short", "Yes\nNo"}, {"one", "Duplicate options", "Yes\nyes"}, {"tug", "Needs two options", "A\nB\nC"}, {"pulse", "Needs at least one button", "   \n   "}} {
 		if _, err = s.createEvent(member, tc.kind, tc.title, tc.options, now); err == nil {
 			t.Fatal("invalid event accepted", tc)
 		}
+	}
+	pulseID, err := s.createEvent(member, "pulse", "Which pulse should we amplify?", "Steady beat\nBig burst\nSlow glow", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pulse, _ := s.poll(pulseID)
+	if pulse.Kind != "pulse" || len(pulse.Options) != 3 {
+		t.Fatal("pulse options were not preserved", pulse)
 	}
 	board, _ := s.board(member)
 	if len(board.Next.Candidates) != 0 {
@@ -209,6 +217,29 @@ func TestCommunityFormatsValidationAndNomination(t *testing.T) {
 	main, _ := s.poll(mainID)
 	if main.ID != id || main.Scope != "main" || main.Ends != board.Poll.Ends+eventWeek {
 		t.Fatal("community submission was not promoted in place", main)
+	}
+}
+
+func TestInvalidSubmissionsDoNotConsumeDailyQuota(t *testing.T) {
+	s := testStation(t)
+	member := testAccount(t, s, "daily-quota-member")
+	now := time.Now().UnixMilli()
+
+	if _, err := s.createEvent(member, "one", "short", "Yes\nNo", now); err == nil {
+		t.Fatal("invalid title accepted")
+	}
+	if _, err := s.createEvent(member, "pulse", "Pulse missing options", "\n\n", now); err == nil {
+		t.Fatal("empty pulse options accepted")
+	}
+
+	for i := 0; i < 3; i++ {
+		title := "Daily quota check event #" + string(rune('A'+i))
+		if _, err := s.createEvent(member, "one", title, "Yes\nNo", now+int64(i)); err != nil {
+			t.Fatal("valid event rejected", i, err)
+		}
+	}
+	if _, err := s.createEvent(member, "one", "Daily quota over limit event", "Yes\nNo", now+10); err == nil {
+		t.Fatal("daily quota should block the fourth valid submission")
 	}
 }
 
